@@ -1,0 +1,30 @@
+[package]
+authors = ["Sachin Iyer <sachinjiyer@gmail.com>"]
+categories = ["wasm"]
+description = "Site for mnist-wasm"
+edition = "2021"
+license = "MIT"
+name = "site"
+readme = "./README.md"
+repository = "https://github.com/sachiniyer/mnist-wasm.git"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = "0.4"
+serde = "1"
+reqwest = { version = "0.11.13", features = ["json"] }
+yew = { version = "0.20.0", features = ["csr"] }
+yew-router = "0.17.0"
+yew-hooks = "0.2.0"
+wasm-bindgen = "0.2"
+wasm-logger = "0.2.0"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+gloo-utils = "0.1.5"
+
+[dev-dependencies.web-sys]
+version = "0.3"
+features = ["Document", "Element", "HtmlCollection"]

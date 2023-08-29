@@ -1,0 +1,12 @@
+/site/target/
+/api/target
+
+Cargo.lock
+
+**/*.rs.bk
+
+node_modules
+/site/dist
+/site/pkg
+/site/wasm-pack.log
+.cache
