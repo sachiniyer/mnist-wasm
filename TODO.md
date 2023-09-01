@@ -1,4 +1,4 @@
-- [ ] Finish overall structure (cargo workspace...)
+- [x] Finish overall structure (cargo workspace...)
 - [ ] Finish model
 - [ ] write api and train mnist
 - [ ] create ui for site
