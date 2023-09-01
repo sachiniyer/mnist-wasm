@@ -8,6 +8,6 @@ _In Progress_
 2. Load weights from an API, and allow people to update weights (by drawing on a canvas and labeling)
 3. Post weights to API.
 4. Build a POC training system completely in the browser.
-5. Use Rust for wasm and api.
+5. Use Rust for wasm, api, and model.
 
 This is for fun to write an nn from scratch and also do some fun rust wasm stuff.
