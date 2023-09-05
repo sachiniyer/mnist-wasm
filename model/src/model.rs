@@ -25,43 +25,34 @@ impl ActivationFunctions {
     }
 
     pub fn logsoftmax(x: Array2<f64>) -> Array2<f64> {
-        let max_x = x.max_axis(ndarray::Axis(1)).unwrap();
-        let max_x = max_x.insert_axis(ndarray::Axis(1)).unwrap();
-        x - &max_x
+        let max_x = x.fold_axis(ndarray::Axis(1), f64::NAN, |&a, &b| a.max(b));
+        let max_x = max_x.insert_axis(ndarray::Axis(1));
+        &x - &max_x
             - &((x - &max_x)
                 .mapv(f64::exp)
                 .sum_axis(ndarray::Axis(1))
-                .unwrap()
                 .mapv(f64::ln)
-                .insert_axis(ndarray::Axis(1))
-                .unwrap())
+                .insert_axis(ndarray::Axis(1)))
     }
 
     pub fn logsoftmax_backward(x: Array2<f64>, y: Array2<f64>) -> Array2<f64> {
-        let softmax_x = (x - &x
-            .max_axis(ndarray::Axis(1))
-            .unwrap()
-            .insert_axis(ndarray::Axis(1))
-            .unwrap())
+        let softmax_x = (&x
+            - &x.fold_axis(ndarray::Axis(1), f64::NAN, |&a, &b| a.max(b))
+                .insert_axis(ndarray::Axis(1)))
             .mapv(f64::exp);
         let softmax_sum = softmax_x
             .sum_axis(ndarray::Axis(1))
-            .unwrap()
-            .insert_axis(ndarray::Axis(1))
-            .unwrap();
+            .insert_axis(ndarray::Axis(1));
         let softmax = softmax_x / &softmax_sum;
         let n = x.shape()[1];
         let delta_ij = Array2::eye(n);
         let softmax_matrix = softmax
-            .clone()
             .insert_axis(ndarray::Axis(1))
+            .broadcast((n, n))
             .unwrap()
-            .repeat(n, ndarray::Axis(1));
+            .to_owned();
         let derivative = &delta_ij - &softmax_matrix;
-        (derivative.t().insert_axis(ndarray::Axis(1)).unwrap()
-            * y.insert_axis(ndarray::Axis(1)).unwrap())
-        .sum_axis(ndarray::Axis(2))
-        .unwrap()
+        y.dot(&derivative)
     }
 }
 
