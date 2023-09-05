@@ -1,69 +1,69 @@
 use ndarray::Array2;
 
-// struct ActivationFunctions {
-//     pub sigmoid: fn(f32) -> f32,
-//     pub sigmoid_backward: fn(f32) -> f32,
-//     pub relu: fn(f32) -> f32,
-//     pub relu_backward: fn(f32) -> f32,
-//     pub softmax: fn(Array2<f32>) -> Array2<f32>,
-//     pub softmax_backward: fn(Array2<f32>) -> Array2<f32>,
-// }
+struct ActivationFunctions {
+    pub relu: fn(Array2<f64>) -> Array2<f64>,
+    pub relu_backward: fn(Array2<f64>, Array2<f64>) -> Array2<f64>,
+    pub logsoftmax: fn(Array2<f64>) -> Array2<f64>,
+    pub logsoftmax_backward: fn(Array2<f64>, Array2<f64>) -> Array2<f64>,
+}
 
-// impl ActivationFunctions {
-//     pub fn new() -> Self {
-//         Self {
-//             sigmoid: Self::sigmoid,
-//             sigmoid_backward: Self::sigmoid_backward,
-//             relu: Self::relu,
-//             relu_backward: Self::relu_backward,
-//             softmax: Self::softmax,
-//             softmax_backward: Self::softmax_backward,
-//         }
-//     }
-//     pub fn sigmoid(x: f32) -> f32 {
-//         1.0 / (1.0 + (-x).exp())
-//     }
+impl ActivationFunctions {
+    pub fn new() -> Self {
+        Self {
+            relu: Self::relu,
+            relu_backward: Self::relu_backward,
+            logsoftmax: Self::logsoftmax,
+            logsoftmax_backward: Self::logsoftmax_backward,
+        }
+    }
+    pub fn relu(x: Array2<f64>) -> Array2<f64> {
+        x.mapv(|x| if x > 0.0 { x } else { 0.0 })
+    }
 
-//     pub fn sigmoid_backward(x: f32) -> f32 {
-//         x * (1.0 - x)
-//     }
+    pub fn relu_backward(x: Array2<f64>, y: Array2<f64>) -> Array2<f64> {
+        x.mapv(|x| if x > 0.0 { 1.0 } else { 0.0 }) * y
+    }
 
-//     pub fn relu(x: f32) -> f32 {
-//         if x > 0.0 {
-//             x
-//         } else {
-//             0.0
-//         }
-//     }
+    pub fn logsoftmax(x: Array2<f64>) -> Array2<f64> {
+        let max_x = x.max_axis(ndarray::Axis(1)).unwrap();
+        let max_x = max_x.insert_axis(ndarray::Axis(1)).unwrap();
+        x - &max_x
+            - &((x - &max_x)
+                .mapv(f64::exp)
+                .sum_axis(ndarray::Axis(1))
+                .unwrap()
+                .mapv(f64::ln)
+                .insert_axis(ndarray::Axis(1))
+                .unwrap())
+    }
 
-//     pub fn relu_backward(x: f32) -> f32 {
-//         if x > 0.0 {
-//             1.0
-//         } else {
-//             0.0
-//         }
-//     }
-
-//     pub fn softmax(x: Array2<f32>) -> Array2<f32> {
-//         let mut sum = 0.0;
-//         let mut result = Array2::zeros(x.shape());
-//         for i in 0..x.shape()[0] {
-//             sum += x[[i, 0]].exp();
-//         }
-//         for i in 0..x.shape()[0] {
-//             result[[i, 0]] = x[[i, 0]].exp() / sum;
-//         }
-//         result
-//     }
-
-//     pub fn softmax_backward(x: Array2<f32>) -> Array2<f32> {
-//         let mut result = Array2::zeros(x.shape());
-//         for i in 0..x.shape()[0] {
-//             result[[i, 0]] = x[[i, 0]] * (1.0 - x[[i, 0]]);
-//         }
-//         result
-//     }
-// }
+    pub fn logsoftmax_backward(x: Array2<f64>, y: Array2<f64>) -> Array2<f64> {
+        let softmax_x = (x - &x
+            .max_axis(ndarray::Axis(1))
+            .unwrap()
+            .insert_axis(ndarray::Axis(1))
+            .unwrap())
+            .mapv(f64::exp);
+        let softmax_sum = softmax_x
+            .sum_axis(ndarray::Axis(1))
+            .unwrap()
+            .insert_axis(ndarray::Axis(1))
+            .unwrap();
+        let softmax = softmax_x / &softmax_sum;
+        let n = x.shape()[1];
+        let delta_ij = Array2::eye(n);
+        let softmax_matrix = softmax
+            .clone()
+            .insert_axis(ndarray::Axis(1))
+            .unwrap()
+            .repeat(n, ndarray::Axis(1));
+        let derivative = &delta_ij - &softmax_matrix;
+        (derivative.t().insert_axis(ndarray::Axis(1)).unwrap()
+            * y.insert_axis(ndarray::Axis(1)).unwrap())
+        .sum_axis(ndarray::Axis(2))
+        .unwrap()
+    }
+}
 
 // pub struct Model {
 //     pub weights: Array2<Array2<f32>>,
