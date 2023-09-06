@@ -21,21 +21,22 @@ async fn main() {
     dotenv().ok();
     if std::env::var("WEIGHTS").is_err() || std::env::var("BIND_URL").is_err() {
         return;
-    }
-    let app = Router::new()
-        .route("/", get(handler))
-        .route("/refresh", get(refresh))
-        .route("/weights", get(weights_get))
-        .route("/weights", post(weights_post));
-
+    };
     axum::Server::bind(&std::env::var("BIND_URL").unwrap().parse().unwrap())
-        .serve(app.into_make_service())
+        .serve(app().into_make_service())
         .await
         .unwrap();
 }
+fn app() -> Router {
+    Router::new()
+        .route("/", get(handler))
+        .route("/refresh", get(refresh))
+        .route("/weights", get(weights_get))
+        .route("/weights", post(weights_post))
+}
 
-async fn handler() -> Html<&'static str> {
-    Html("<h1>Hello, World!</h1>")
+async fn handler() -> &'static str {
+    "Hello, World!"
 }
 
 async fn refresh() -> Html<&'static str> {
@@ -53,4 +54,15 @@ async fn weights_post(Json(weights): Json<Weights>) -> StatusCode {
     file.write_all(serde_json::to_string(&weights).unwrap().as_bytes())
         .unwrap();
     StatusCode::OK
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_handler() {
+        let response = handler().await;
+        assert_eq!(response, "Hello, World!");
+    }
 }
