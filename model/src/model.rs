@@ -1,7 +1,7 @@
 use ndarray::Array1;
 use ndarray::Array2;
 
-struct ActivationFunctions {}
+struct ActivationFunctions;
 
 impl ActivationFunctions {
     pub fn relu1d(x: Array1<f64>) -> Array1<f64> {
