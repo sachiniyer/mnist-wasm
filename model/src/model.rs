@@ -75,9 +75,20 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn new(weights: (Array2<f64>, Array2<f64>), learning_rates: (f64, f64)) -> Self {
+    pub fn new(weights: (Vec<Vec<f64>>, Vec<Vec<f64>>), learning_rates: (f64, f64)) -> Self {
         Self {
-            weights,
+            weights: (
+                Array2::from_shape_vec(
+                    (weights.0.len(), weights.0[0].len()),
+                    weights.0.into_iter().flatten().collect(),
+                )
+                .unwrap(),
+                Array2::from_shape_vec(
+                    (weights.1.len(), weights.1[0].len()),
+                    weights.1.into_iter().flatten().collect(),
+                )
+                .unwrap(),
+            ),
             learning_rates,
         }
     }
@@ -147,5 +158,12 @@ impl Model {
             ActivationFunctions::relu_backward2d(self.weights.1.dot(&input), layer2_gradients);
         self.weights.0 = &self.weights.0 - &layer1_gradients * self.learning_rates.0;
         loss
+    }
+
+    pub fn weights(&self) -> (Vec<f64>, Vec<f64>) {
+        (
+            self.weights.0.clone().into_raw_vec(),
+            self.weights.1.clone().into_raw_vec(),
+        )
     }
 }
