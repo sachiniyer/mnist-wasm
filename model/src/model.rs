@@ -105,18 +105,19 @@ impl Model {
 
     pub fn train1d(&mut self, input: Vec<f64>, target: i32) -> f64 {
         let input = Array1::from(input);
-        let mut layer = self.weights.0.dot(&input);
-        layer = ActivationFunctions::relu1d(layer);
-        layer = self.weights.1.dot(&layer);
-        layer = ActivationFunctions::logsoftmax1d(layer);
+        let layer1 = self.weights.0.dot(&input);
+        let layer1_relu = ActivationFunctions::relu1d(layer1);
+        let layer2 = self.weights.1.dot(&layer1_relu);
+        let output = ActivationFunctions::logsoftmax1d(layer2);
         let mut target_vec = vec![0.0; 10];
         target_vec[target as usize] = 1.0;
         let target = Array1::from(target_vec);
-        let loss = -(&target * &layer).sum();
-        let mut gradients = ActivationFunctions::logsoftmax_backward1d(layer, target);
-        self.weights.1 = &self.weights.1 - &gradients * self.learning_rates.1;
-        gradients = ActivationFunctions::relu_backward1d(self.weights.1.dot(&input), gradients);
-        self.weights.0 = &self.weights.0 - &gradients * self.learning_rates.0;
+        let loss = -(&target * &output).sum();
+        let layer2_gradients = ActivationFunctions::logsoftmax_backward1d(output, target);
+        self.weights.1 = &self.weights.1 - &layer2_gradients * self.learning_rates.1;
+        let layer1_gradients =
+            ActivationFunctions::relu_backward1d(self.weights.1.dot(&input), layer2_gradients);
+        self.weights.0 = &self.weights.0 - &layer1_gradients * self.learning_rates.0;
         loss
     }
 
@@ -126,10 +127,10 @@ impl Model {
             input.into_iter().flatten().collect(),
         )
         .unwrap();
-        let mut layer = self.weights.0.dot(&input);
-        layer = ActivationFunctions::relu2d(layer);
-        layer = self.weights.1.dot(&layer);
-        layer = ActivationFunctions::logsoftmax2d(layer);
+        let layer1 = self.weights.0.dot(&input);
+        let layer1_relu = ActivationFunctions::relu2d(layer1);
+        let layer2 = self.weights.1.dot(&layer1_relu);
+        let output = ActivationFunctions::logsoftmax2d(layer2);
         let mut target_vec = vec![vec![0.0; 10]; target.len()];
         for (i, t) in target.iter().enumerate() {
             target_vec[i][*t as usize] = 1.0;
@@ -139,11 +140,12 @@ impl Model {
             target_vec.into_iter().flatten().collect(),
         )
         .unwrap();
-        let loss = -(&target * &layer).sum();
-        let mut gradients = ActivationFunctions::logsoftmax_backward2d(layer, target);
-        self.weights.1 = &self.weights.1 - &gradients * self.learning_rates.1;
-        gradients = ActivationFunctions::relu_backward2d(self.weights.1.dot(&input), gradients);
-        self.weights.0 = &self.weights.0 - &gradients * self.learning_rates.0;
+        let loss = -(&target * &output).sum();
+        let layer2_gradients = ActivationFunctions::logsoftmax_backward2d(output, target);
+        self.weights.1 = &self.weights.1 - &layer2_gradients * self.learning_rates.1;
+        let layer1_gradients =
+            ActivationFunctions::relu_backward2d(self.weights.1.dot(&input), layer2_gradients);
+        self.weights.0 = &self.weights.0 - &layer1_gradients * self.learning_rates.0;
         loss
     }
 }
