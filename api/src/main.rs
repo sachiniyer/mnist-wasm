@@ -19,7 +19,7 @@ struct Weights {
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-    if std::env::var("WEIGHTS").is_err() {
+    if std::env::var("WEIGHTS").is_err() || std::env::var("BIND_URL").is_err() {
         return;
     }
     let app = Router::new()
@@ -28,7 +28,7 @@ async fn main() {
         .route("/weights", get(weights_get))
         .route("/weights", post(weights_post));
 
-    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
+    axum::Server::bind(&std::env::var("BIND_URL").unwrap().parse().unwrap())
         .serve(app.into_make_service())
         .await
         .unwrap();
