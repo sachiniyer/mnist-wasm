@@ -1,30 +1,32 @@
+use ndarray::Array1;
 use ndarray::Array2;
 
-struct ActivationFunctions {
-    pub relu: fn(Array2<f64>) -> Array2<f64>,
-    pub relu_backward: fn(Array2<f64>, Array2<f64>) -> Array2<f64>,
-    pub logsoftmax: fn(Array2<f64>) -> Array2<f64>,
-    pub logsoftmax_backward: fn(Array2<f64>, Array2<f64>) -> Array2<f64>,
-}
+struct ActivationFunctions {}
 
 impl ActivationFunctions {
-    pub fn new() -> Self {
-        Self {
-            relu: Self::relu,
-            relu_backward: Self::relu_backward,
-            logsoftmax: Self::logsoftmax,
-            logsoftmax_backward: Self::logsoftmax_backward,
-        }
-    }
-    pub fn relu(x: Array2<f64>) -> Array2<f64> {
+    pub fn relu1d(x: Array1<f64>) -> Array1<f64> {
         x.mapv(|x| if x > 0.0 { x } else { 0.0 })
     }
 
-    pub fn relu_backward(x: Array2<f64>, y: Array2<f64>) -> Array2<f64> {
+    pub fn relu2d(x: Array2<f64>) -> Array2<f64> {
+        x.mapv(|x| if x > 0.0 { x } else { 0.0 })
+    }
+
+    pub fn relu_backward1d(x: Array1<f64>, y: Array1<f64>) -> Array1<f64> {
         x.mapv(|x| if x > 0.0 { 1.0 } else { 0.0 }) * y
     }
 
-    pub fn logsoftmax(x: Array2<f64>) -> Array2<f64> {
+    pub fn relu_backward2d(x: Array2<f64>, y: Array2<f64>) -> Array2<f64> {
+        x.mapv(|x| if x > 0.0 { 1.0 } else { 0.0 }) * y
+    }
+
+    pub fn logsoftmax1d(x: Array1<f64>) -> Array1<f64> {
+        let max_x = x.fold(f64::NAN, |a, b| a.max(*b));
+        let max_x = Array1::from_elem(x.len(), max_x);
+        &x - &max_x - Array1::from_elem(x.len(), x.mapv(f64::exp).sum().ln())
+    }
+
+    pub fn logsoftmax2d(x: Array2<f64>) -> Array2<f64> {
         let max_x = x.fold_axis(ndarray::Axis(1), f64::NAN, |&a, &b| a.max(b));
         let max_x = max_x.insert_axis(ndarray::Axis(1));
         &x - &max_x
@@ -35,7 +37,18 @@ impl ActivationFunctions {
                 .insert_axis(ndarray::Axis(1)))
     }
 
-    pub fn logsoftmax_backward(x: Array2<f64>, y: Array2<f64>) -> Array2<f64> {
+    pub fn logsoftmax_backward1d(x: Array1<f64>, y: Array1<f64>) -> Array1<f64> {
+        let softmax_x = (&x - x.fold(f64::NAN, |a, b| a.max(*b))).mapv(f64::exp);
+        let softmax_sum = softmax_x.sum();
+        let softmax = softmax_x / softmax_sum;
+        let n = x.len();
+        let delta_ij = Array2::eye(n);
+        let softmax_matrix = softmax.broadcast(n).unwrap().to_owned();
+        let derivative = &delta_ij - &softmax_matrix;
+        y.dot(&derivative)
+    }
+
+    pub fn logsoftmax_backward2d(x: Array2<f64>, y: Array2<f64>) -> Array2<f64> {
         let softmax_x = (&x
             - &x.fold_axis(ndarray::Axis(1), f64::NAN, |&a, &b| a.max(b))
                 .insert_axis(ndarray::Axis(1)))
@@ -56,62 +69,81 @@ impl ActivationFunctions {
     }
 }
 
-// pub struct Model {
-//     pub weights: Array2<Array2<f32>>,
-//     pub biases: Array2<f32>,
-// }
-
-// impl Model {
-//     pub fn new(weights: Array2<Array2<f32>>, biases: Array2<f32>) -> Self {
-//         Self { weights, biases }
-//     }
-
-//     pub fn forward(&self, input: Array2<f32>) -> Array2<f32> {
-//         let mut result = input.clone();
-//         for i in 0..self.weights.shape()[0] {
-//             result = self.weights[[i, 0]].dot(&result) + &self.biases[[i, 0]];
-//             result = ActivationFunctions::sigmoid(result);
-//         }
-//         result
-//     }
-
-//     fn cost(&self, input: Array2<f32>, output: Array2<f32>) -> f32 {
-//         let mut result = 0.0;
-//         let mut prediction = self.forward(input);
-//         prediction = ActivationFunctions::softmax(prediction);
-//         for i in 0..output.shape()[0] {
-//             result += output[[i, 0]] * prediction[[i, 0]].ln();
-//         }
-//         -result
-//     }
-
-//     pub fn backward(
-//         &self,
-//         input: Array2<f32>,
-//         output: Array2<f32>,
-//     ) -> (Array2<Array2<f32>>, Array2<f32>) {
-//         let mut weights_gradient = Array2::zeros(self.weights.shape());
-//         let mut biases_gradient = Array2::zeros(self.biases.shape());
-//         let mut prediction = self.forward(input);
-//         prediction = ActivationFunctions::softmax(prediction);
-//         let mut delta = prediction - output;
-//         for i in (0..self.weights.shape()[0]).rev() {
-//             weights_gradient[[i, 0]] = delta.dot(&input.t());
-//             biases_gradient[[i, 0]] = delta.sum();
-//             delta = self.weights[[i, 0]].t().dot(&delta)
-//                 * ActivationFunctions::sigmoid_backward(prediction);
-//         }
-//         (weights_gradient, biases_gradient)
-//     }
-// }
-
 pub struct Model {
-    pub weights: Array2<Array2<f32>>,
-    pub biases: Array2<f32>,
+    pub weights: (Array2<f64>, Array2<f64>),
+    pub learning_rates: (f64, f64),
 }
 
 impl Model {
-    pub fn new(weights: Array2<Array2<f32>>, biases: Array2<f32>) -> Self {
-        Self { weights, biases }
+    pub fn new(weights: (Array2<f64>, Array2<f64>), learning_rates: (f64, f64)) -> Self {
+        Self {
+            weights,
+            learning_rates,
+        }
+    }
+
+    pub fn infer(&self, input: Vec<f64>) -> i32 {
+        let input = Array1::from(input);
+        let mut layer = self.weights.0.dot(&input);
+        layer = ActivationFunctions::relu1d(layer);
+        layer = self.weights.1.dot(&layer);
+        layer
+            .iter()
+            .enumerate()
+            .fold(
+                (0, f64::NAN),
+                |(i, max), (j, &x)| {
+                    if x > max {
+                        (j, x)
+                    } else {
+                        (i, max)
+                    }
+                },
+            )
+            .0 as i32
+    }
+
+    pub fn train1d(&mut self, input: Vec<f64>, target: i32) -> f64 {
+        let input = Array1::from(input);
+        let mut layer = self.weights.0.dot(&input);
+        layer = ActivationFunctions::relu1d(layer);
+        layer = self.weights.1.dot(&layer);
+        layer = ActivationFunctions::logsoftmax1d(layer);
+        let mut target_vec = vec![0.0; 10];
+        target_vec[target as usize] = 1.0;
+        let target = Array1::from(target_vec);
+        let loss = -(&target * &layer).sum();
+        let mut gradients = ActivationFunctions::logsoftmax_backward1d(layer, target);
+        self.weights.1 = &self.weights.1 - &gradients * self.learning_rates.1;
+        gradients = ActivationFunctions::relu_backward1d(self.weights.1.dot(&input), gradients);
+        self.weights.0 = &self.weights.0 - &gradients * self.learning_rates.0;
+        loss
+    }
+
+    pub fn train2d(&mut self, input: Vec<Vec<f64>>, target: Vec<i32>) -> f64 {
+        let input = Array2::from_shape_vec(
+            (input.len(), input[0].len()),
+            input.into_iter().flatten().collect(),
+        )
+        .unwrap();
+        let mut layer = self.weights.0.dot(&input);
+        layer = ActivationFunctions::relu2d(layer);
+        layer = self.weights.1.dot(&layer);
+        layer = ActivationFunctions::logsoftmax2d(layer);
+        let mut target_vec = vec![vec![0.0; 10]; target.len()];
+        for (i, t) in target.iter().enumerate() {
+            target_vec[i][*t as usize] = 1.0;
+        }
+        let target = Array2::from_shape_vec(
+            (target_vec.len(), target_vec[0].len()),
+            target_vec.into_iter().flatten().collect(),
+        )
+        .unwrap();
+        let loss = -(&target * &layer).sum();
+        let mut gradients = ActivationFunctions::logsoftmax_backward2d(layer, target);
+        self.weights.1 = &self.weights.1 - &gradients * self.learning_rates.1;
+        gradients = ActivationFunctions::relu_backward2d(self.weights.1.dot(&input), gradients);
+        self.weights.0 = &self.weights.0 - &gradients * self.learning_rates.0;
+        loss
     }
 }
