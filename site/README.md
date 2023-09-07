@@ -16,3 +16,10 @@ Features:
 This is built using rust to create wasm that both runs the model and creates the website. This allows for all training and inference to be done at close to native speed.
 
 The weights are the only thing that are pushed/pulled from the API (so you don't have to wait for the model to train every time). It also allows anyone to improve the weights when they visit the site for the next people.
+
+## Build Instructions
+
+From the [yew getting started](https://yew.rs/docs/next/getting-started/introduction)
+
+- `cargo install --locked trunk`
+- `trunk serve`

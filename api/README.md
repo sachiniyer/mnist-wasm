@@ -23,3 +23,8 @@ Just responds with the weights that are stored locally
 #### POST /weights
 
 Updates the weights when someones decides to upload them
+
+## Build Instructions
+
+- create `.env` (`cp env.sample .env`)
+- `cargo run`

@@ -11,3 +11,5 @@ node_modules
 /site/pkg
 /site/wasm-pack.log
 .cache
+
+.env
