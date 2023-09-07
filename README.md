@@ -11,3 +11,7 @@ _In Progress_
 5. Use Rust for wasm, api, and model.
 
 This is for fun to write an nn from scratch and also do some fun rust wasm stuff.
+
+- [Information about the api](./api/README.md)
+- [Information about the model](./model/README.md)
+- [Information about the site](./site/README.md)
