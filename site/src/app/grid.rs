@@ -32,7 +32,7 @@ pub fn grid_cell(props: &GridCellProps) -> Html {
     html! {
         <div style={ color(props.val) }
             class="w-4 h-4 border border-gray-400"
-            onmouseover={change}
+            onmouseover={ change }
         >
         </div>
     }
