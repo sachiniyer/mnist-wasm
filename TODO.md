@@ -3,5 +3,5 @@
 - [ ] write api and train mnist
 - [x] create ui for site
 - [ ] make ui pretty
-- [ ] write model and site interaction
+- [x] write model and site interaction
 - [ ] tie it all together
