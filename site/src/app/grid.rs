@@ -64,7 +64,8 @@ pub fn grid(props: &GridProps) -> Html {
 
     let clear_grid = {
         let grid_local_handler = grid_local_handler.clone();
-        Callback::from(move |_| grid_local_handler.set([[false; 28]; 28]))
+        let props = props.clone();
+        Callback::from(move |_| grid_local_handler.set(props.init_grid.clone()))
     };
 
     let mut grid_display = vec![];

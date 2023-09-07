@@ -34,19 +34,18 @@ pub fn home() -> Html {
     }
 
     html! {
-        <>
+        <div>
+            <h1>{ "MNIST WASM" }</h1>
+            <p>{ "rust wasm neural net in your browser" }</p>
             <div>
-                <h1>{ "MNIST WASM" }</h1>
-                <p>{ "rust wasm neural net in your browser" }</p>
-                <div>
-                    <Grid
-                        grid={grid_callback}
-                        init_grid={[[false; 28]; 28]}
-                    />
-                </div>
-                <button onclick={show_grid_callback}>{ "Show Data" }</button>
-                <div> { if *show_grid_handle { print_grid(*grid_component_handler) } else { "".to_string() } } </div>
+                <Grid grid={grid_callback}
+                      init_grid={ [[false; 28]; 28] }/>
             </div>
-        </>
+                <button onclick={show_grid_callback}>{ "Show Data" }</button>
+                <div> {
+                    if *show_grid_handle { print_grid(*grid_component_handler) }
+                    else { "".to_string() }
+                } </div>
+        </div>
     }
 }
