@@ -69,6 +69,7 @@ impl ActivationFunctions {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Model {
     pub weights: (Array2<f64>, Array2<f64>),
     pub learning_rates: (f64, f64),
