@@ -1,69 +1,52 @@
+use crate::app::Grid;
 use yew::prelude::*;
-use yew_hooks::prelude::*;
 
 #[function_component(Home)]
 pub fn home() -> Html {
-    let counter = use_counter(0);
+    let grid_component_handler = use_state(|| [[false; 28]; 28]);
 
-    let onincrease = {
-        let counter = counter.clone();
-        Callback::from(move |_| counter.increase())
+    let grid_callback = {
+        let grid_component_handler = grid_component_handler.clone();
+        Callback::from(move |grid: [[bool; 28]; 28]| {
+            grid_component_handler.set(grid);
+        })
     };
-    let ondecrease = {
-        let counter = counter.clone();
-        Callback::from(move |_| counter.decrease())
+
+    let show_grid_handle = use_state(|| false);
+
+    let show_grid_callback = {
+        let show_grid_handle = show_grid_handle.clone();
+        Callback::from(move |_| {
+            show_grid_handle.set(!*show_grid_handle);
+        })
     };
+
+    fn print_grid(grid: [[bool; 28]; 28]) -> String {
+        grid.iter()
+            .map(|row| {
+                row.iter()
+                    .map(|col| if *col { "1" } else { "0" })
+                    .collect::<Vec<&str>>()
+                    .join("")
+            })
+            .collect::<Vec<String>>()
+            .join("\n")
+    }
 
     html! {
-        <div class="container text-center">
-            <p class="space-y-6"></p>
-            <header class="space-y-12">
-                <p class="space-x-6">
-                    <button class="inline-flex
-                                   items-center
-                                   justify-center
-                                   rounded-md
-                                   text-sm
-                                   font-medium
-                                   ring-offset-background
-                                   transition-colors
-                                   focus-visible:outline-none
-                                   focus-visible:ring-2
-                                   focus-visible:ring-ring
-                                   focus-visible:ring-offset-2
-                                   disabled:pointer-events-none
-                                   disabled:opacity-50
-                                   h-10
-                                   px-4
-                                   py-2
-                                   bg-emerald-600
-                                   text-slate-100
-                                   hover:bg-emerald-600/90"
-                            onclick={ondecrease}>{ "Decrease" }</button>
-                    <span class="w-12 inline-block">{ *counter }</span>
-                    <button class="inline-flex
-                                   items-center
-                                   justify-center
-                                   rounded-md
-                                   text-sm
-                                   font-medium
-                                   ring-offset-background
-                                   transition-colors
-                                   focus-visible:outline-none
-                                   focus-visible:ring-2
-                                   focus-visible:ring-ring
-                                   focus-visible:ring-offset-2
-                                   disabled:pointer-events-none
-                                   disabled:opacity-50
-                                   h-10
-                                   px-4
-                                   py-2
-                                   bg-emerald-600
-                                   text-slate-100
-                                   hover:bg-emerald-600/90"
-                            onclick={onincrease}>{ "Increase" }</button>
-                </p>
-            </header>
-        </div>
+        <>
+            <div>
+                <h1>{ "MNIST WASM" }</h1>
+                <p>{ "rust wasm neural net in your browser" }</p>
+                <div>
+                    <Grid
+                        grid={grid_callback}
+                        init_grid={[[false; 28]; 28]}
+                    />
+                </div>
+                <button onclick={show_grid_callback}>{ "Show Data" }</button>
+                <div> { if *show_grid_handle { print_grid(*grid_component_handler) } else { "".to_string() } } </div>
+            </div>
+        </>
     }
 }

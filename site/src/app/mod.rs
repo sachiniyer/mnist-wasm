@@ -1,8 +1,10 @@
 use yew::prelude::*;
 use yew_router::prelude::*;
 
+pub mod grid;
 pub mod home;
 
+use grid::Grid;
 use home::Home;
 
 /// App routes
