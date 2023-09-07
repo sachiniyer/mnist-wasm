@@ -1,6 +1,7 @@
 - [x] Finish overall structure (cargo workspace...)
 - [ ] Finish model
 - [ ] write api and train mnist
-- [ ] create ui for site
+- [x] create ui for site
+- [ ] make ui pretty
 - [ ] write model and site interaction
 - [ ] tie it all together
