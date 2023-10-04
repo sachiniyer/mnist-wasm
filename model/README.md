@@ -16,3 +16,5 @@ Everything is implemented in scratch with rust. The only significant library use
 ## Build instructions
 
 `cargo build` should do it
+
+It is also built during the building of the site or the api.
