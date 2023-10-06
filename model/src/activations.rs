@@ -1,5 +1,4 @@
-use ndarray::Array1;
-use ndarray::Array2;
+use ndarray::{stack, Array1, Array2, ArrayView1, Axis};
 
 pub struct ActivationFunctions;
 
@@ -35,31 +34,69 @@ impl ActivationFunctions {
     }
 
     pub fn logsoftmax_backward1d(x: Array1<f64>, y: Array1<f64>) -> Array1<f64> {
+        println!("X{:?}", x);
         let softmax_x = (&x - x.fold(f64::NAN, |a, b| a.max(*b))).mapv(f64::exp);
+        println!("SOFTMAX_X{:?}", softmax_x);
         let softmax_sum = softmax_x.sum();
+        println!("SOFTMAX_SUM{:?}", softmax_sum);
         let softmax = softmax_x / softmax_sum;
+        println!("SOFTMAX{:?}", softmax);
         let n = x.len();
+        println!("N{:?}", n);
         let delta_ij = Array2::eye(n);
+        println!("DELTA_IJ{:?}", delta_ij);
         let softmax_matrix = softmax.broadcast(n).unwrap().to_owned();
+        println!("SOFTMAX_MATRIX{:?}", softmax_matrix);
         let derivative = &delta_ij - &softmax_matrix;
+        println!("DERIVATIVE{:?}", derivative);
+        println!("FINAL{:?}", y.dot(&derivative));
         y.dot(&derivative)
     }
 
     pub fn logsoftmax_backward2d(x: Array2<f64>, y: Array2<f64>) -> Array2<f64> {
+        println!("X{:?}", x);
         let softmax_x = (&x
             - &x.fold_axis(ndarray::Axis(1), f64::NAN, |&a, &b| a.max(b))
                 .insert_axis(ndarray::Axis(1)))
             .mapv(f64::exp);
-        println!("{:?}", softmax_x);
+        println!("SOFTMAX_X{:?}", softmax_x);
         let softmax_sum = softmax_x
             .sum_axis(ndarray::Axis(1))
             .insert_axis(ndarray::Axis(1));
+        println!("SOFTMAX_SUM{:?}", softmax_sum);
         let softmax = softmax_x / &softmax_sum;
+        println!("SOFTMAX{:?}", softmax);
         let n = x.shape()[1];
-        let delta_ij = Array2::eye(n);
-        let softmax_matrix = softmax.broadcast((n, n)).unwrap().to_owned();
+        let m = x.shape()[0];
+        println!("N{:?}, M{:?}", n, m);
+        let inner_delta_ij: Array2<f64> = Array2::eye(n);
+        println!("INNER DELTA IJ{:?}", inner_delta_ij);
+        let delta_ij = inner_delta_ij.broadcast((m, n, n)).unwrap().to_owned();
+        println!("DELTA IJ{:?}", delta_ij);
+        let softmax_matrix = softmax
+            .insert_axis(Axis(1))
+            .broadcast((m, n, n))
+            .unwrap()
+            .to_owned();
+        println!("SOFTMAX MATRIX{:?}", softmax_matrix);
         let derivative = &delta_ij - &softmax_matrix;
-        y.dot(&derivative)
+        println!("DERIVATIVE{:?}", derivative);
+        println!("Y{:?}", y);
+        stack(
+            Axis(0),
+            &y.axis_iter(Axis(0))
+                .zip(derivative.axis_iter(Axis(0)))
+                .map(|(y, derivative)| {
+                    println!("Y{:?}", y);
+                    println!("DERIVATIVE{:?}", derivative);
+                    y.dot(&derivative)
+                })
+                .collect::<Vec<Array1<f64>>>()
+                .iter()
+                .map(|x| x.view())
+                .collect::<Vec<ArrayView1<f64>>>(),
+        )
+        .unwrap()
     }
 }
 
@@ -140,10 +177,10 @@ mod tests {
 
     #[test]
     fn test_logsoftmax_backward1d() {
-        let x = Array1::from_vec(vec![1.0, 2.0, 0.0]);
-        let y = Array1::from_vec(vec![2.0, 1.0, -1.0]);
+        let x = Array1::from_vec(vec![0.0, -3.0, 1.0]);
+        let y = Array1::from_vec(vec![0.0, -2.0, 0.0]);
         let t = ActivationFunctions::logsoftmax_backward1d(x, y);
-        let z = Array1::from_vec(vec![1.51054306, -0.33048191, -1.18006115]);
+        let z = Array1::from_vec(vec![0.53077585, -1.97357422, 1.44279836]);
         assert_eq!(
             t.iter()
                 .zip(z.iter())
@@ -154,15 +191,20 @@ mod tests {
 
     #[test]
     fn test_logsoftmax_backward2d() {
-        let x = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 0.0]).unwrap();
-        let y = Array2::from_shape_vec((2, 2), vec![2.0, 1.0, -1.0, 0.0]).unwrap();
+        let x = Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 0.0, 0.0, -3.0, 1.0]).unwrap();
+        let y = Array2::from_shape_vec((2, 3), vec![2.0, 1.0, -1.0, 0.0, -2.0, 0.0]).unwrap();
         let t = ActivationFunctions::logsoftmax_backward2d(x.clone(), y.clone());
-        println!("{:?}", x);
-        println!("{:?}", y);
-        println!("{:?}", t);
+        println!("T{:?}", t);
         let z = Array2::from_shape_vec(
-            (2, 2),
-            vec![1.82571136, 0.52623436, -1.06411721, -1.28782852] as Vec<f64>,
+            (2, 3),
+            vec![
+                1.51054305,
+                -0.33048191,
+                -1.1800611,
+                0.53077585,
+                -1.97357422,
+                1.44279836,
+            ] as Vec<f64>,
         )
         .unwrap();
         assert_eq!(
