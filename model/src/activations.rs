@@ -36,61 +36,39 @@ impl ActivationFunctions {
     pub fn logsoftmax_backward1d(x: Array1<f64>, y: Array1<f64>) -> Array1<f64> {
         println!("X{:?}", x);
         let softmax_x = (&x - x.fold(f64::NAN, |a, b| a.max(*b))).mapv(f64::exp);
-        println!("SOFTMAX_X{:?}", softmax_x);
         let softmax_sum = softmax_x.sum();
-        println!("SOFTMAX_SUM{:?}", softmax_sum);
         let softmax = softmax_x / softmax_sum;
-        println!("SOFTMAX{:?}", softmax);
         let n = x.len();
-        println!("N{:?}", n);
         let delta_ij = Array2::eye(n);
-        println!("DELTA_IJ{:?}", delta_ij);
         let softmax_matrix = softmax.broadcast(n).unwrap().to_owned();
-        println!("SOFTMAX_MATRIX{:?}", softmax_matrix);
         let derivative = &delta_ij - &softmax_matrix;
-        println!("DERIVATIVE{:?}", derivative);
-        println!("FINAL{:?}", y.dot(&derivative));
         y.dot(&derivative)
     }
 
     pub fn logsoftmax_backward2d(x: Array2<f64>, y: Array2<f64>) -> Array2<f64> {
-        println!("X{:?}", x);
         let softmax_x = (&x
             - &x.fold_axis(ndarray::Axis(1), f64::NAN, |&a, &b| a.max(b))
                 .insert_axis(ndarray::Axis(1)))
             .mapv(f64::exp);
-        println!("SOFTMAX_X{:?}", softmax_x);
         let softmax_sum = softmax_x
             .sum_axis(ndarray::Axis(1))
             .insert_axis(ndarray::Axis(1));
-        println!("SOFTMAX_SUM{:?}", softmax_sum);
         let softmax = softmax_x / &softmax_sum;
-        println!("SOFTMAX{:?}", softmax);
         let n = x.shape()[1];
         let m = x.shape()[0];
-        println!("N{:?}, M{:?}", n, m);
         let inner_delta_ij: Array2<f64> = Array2::eye(n);
-        println!("INNER DELTA IJ{:?}", inner_delta_ij);
         let delta_ij = inner_delta_ij.broadcast((m, n, n)).unwrap().to_owned();
-        println!("DELTA IJ{:?}", delta_ij);
         let softmax_matrix = softmax
             .insert_axis(Axis(1))
             .broadcast((m, n, n))
             .unwrap()
             .to_owned();
-        println!("SOFTMAX MATRIX{:?}", softmax_matrix);
         let derivative = &delta_ij - &softmax_matrix;
-        println!("DERIVATIVE{:?}", derivative);
-        println!("Y{:?}", y);
         stack(
             Axis(0),
             &y.axis_iter(Axis(0))
                 .zip(derivative.axis_iter(Axis(0)))
-                .map(|(y, derivative)| {
-                    println!("Y{:?}", y);
-                    println!("DERIVATIVE{:?}", derivative);
-                    y.dot(&derivative)
-                })
+                .map(|(y, derivative)| y.dot(&derivative))
                 .collect::<Vec<Array1<f64>>>()
                 .iter()
                 .map(|x| x.view())
