@@ -27,6 +27,11 @@ impl Model {
         }
     }
 
+    fn update_weights(&mut self, gradients: (Array2<f64>, Array2<f64>)) {
+        self.weights.0 = &self.weights.0 - &gradients.0 * self.learning_rates.0;
+        self.weights.1 = &self.weights.1 - &gradients.1 * self.learning_rates.1;
+    }
+
     pub fn infer(&self, input: Vec<f64>) -> i32 {
         let input = Array1::from(input);
         let mut layer = self.weights.0.dot(&input);
@@ -58,11 +63,32 @@ impl Model {
         target_vec[target as usize] = 1.0;
         let target = Array1::from(target_vec);
         let loss = -(&target * &output).sum();
-        let layer2_gradients = ActivationFunctions::logsoftmax_backward1d(output, target);
-        self.weights.1 = &self.weights.1 - &layer2_gradients * self.learning_rates.1;
-        let layer1_gradients =
-            ActivationFunctions::relu_backward1d(self.weights.1.dot(&input), layer2_gradients);
-        self.weights.0 = &self.weights.0 - &layer1_gradients * self.learning_rates.0;
+        let logsoftmax_gradients = ActivationFunctions::logsoftmax_backward1d(output, target);
+        let layer2_gradients = logsoftmax_gradients
+            .to_owned()
+            .into_shape((logsoftmax_gradients.len(), 1))
+            .unwrap()
+            .dot(
+                &layer1_relu
+                    .to_owned()
+                    .into_shape((1, layer1_relu.len()))
+                    .unwrap(),
+            );
+        let relu_gradients = ActivationFunctions::relu_backward1d(
+            layer1_relu,
+            logsoftmax_gradients.dot(&self.weights.1),
+        );
+        let layer1_gradients = relu_gradients
+            .to_owned()
+            .into_shape((relu_gradients.len(), 1))
+            .unwrap()
+            .dot(&input.to_owned().into_shape((1, input.len())).unwrap());
+        println!(
+            "LAYER 2 GRADIENTS {:?} \n LAYER 1 GRADIENTS {:?}",
+            layer2_gradients, layer1_gradients,
+        );
+
+        self.update_weights((layer1_gradients, layer2_gradients));
         loss
     }
 
@@ -99,5 +125,26 @@ impl Model {
             self.weights.0.clone().into_raw_vec(),
             self.weights.1.clone().into_raw_vec(),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn approximate_equal(x: f64, y: f64) -> bool {
+        (x - y).abs() < 1e-4
+    }
+
+    #[test]
+    fn test_train1d() {
+        let input = vec![0.0; 784];
+        let target = 1;
+        let mut model = Model::new(
+            (vec![vec![0.0; 784]; 128], vec![vec![0.0; 128]; 10]),
+            (0.1, 0.1),
+        );
+        let loss = model.train1d(input, target);
+        assert!(approximate_equal(loss, 2.302585092994046))
     }
 }

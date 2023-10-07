@@ -97,6 +97,10 @@ async fn weights_post(Json(weights): Json<Weights>) -> StatusCode {
 mod tests {
     use super::*;
 
+    fn approximate_equal(x: f64, y: f64) -> bool {
+        (x - y).abs() < 1e-4
+    }
+
     #[tokio::test]
     async fn test_handler() {
         let response = handler().await;
@@ -117,6 +121,9 @@ mod tests {
             }],
         }))
         .await;
-        assert_eq!(response.0["loss"], 0.0);
+        assert!(approximate_equal(
+            response.0["loss"].as_f64().unwrap(),
+            2.302585092994046
+        ));
     }
 }

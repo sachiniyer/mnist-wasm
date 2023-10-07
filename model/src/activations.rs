@@ -34,7 +34,6 @@ impl ActivationFunctions {
     }
 
     pub fn logsoftmax_backward1d(x: Array1<f64>, y: Array1<f64>) -> Array1<f64> {
-        println!("X{:?}", x);
         let softmax_x = (&x - x.fold(f64::NAN, |a, b| a.max(*b))).mapv(f64::exp);
         let softmax_sum = softmax_x.sum();
         let softmax = softmax_x / softmax_sum;
@@ -128,12 +127,10 @@ mod tests {
         let y = ActivationFunctions::logsoftmax1d(x);
         let z = Array1::from_vec(vec![-2.4401897, -1.4401897, -0.4401897, -3.4401897] as Vec<f64>);
 
-        assert_eq!(
-            y.iter()
-                .zip(z.iter())
-                .fold(true, |acc, x| acc && approximate_equal(*x.0, *x.1)),
-            true
-        )
+        assert!(y
+            .iter()
+            .zip(z.iter())
+            .fold(true, |acc, x| acc && approximate_equal(*x.0, *x.1)),)
     }
 
     #[test]
@@ -145,12 +142,10 @@ mod tests {
             vec![-1.31326169, -0.31326169, -0.04858735, -3.04858735] as Vec<f64>,
         )
         .unwrap();
-        assert_eq!(
-            y.iter()
-                .zip(z.iter())
-                .fold(true, |acc, x| acc && approximate_equal(*x.0, *x.1)),
-            true,
-        )
+        assert!(y
+            .iter()
+            .zip(z.iter())
+            .fold(true, |acc, x| acc && approximate_equal(*x.0, *x.1)),)
     }
 
     #[test]
@@ -159,12 +154,10 @@ mod tests {
         let y = Array1::from_vec(vec![0.0, -2.0, 0.0]);
         let t = ActivationFunctions::logsoftmax_backward1d(x, y);
         let z = Array1::from_vec(vec![0.53077585, -1.97357422, 1.44279836]);
-        assert_eq!(
-            t.iter()
-                .zip(z.iter())
-                .fold(true, |acc, x| acc && approximate_equal(*x.0, *x.1)),
-            true
-        );
+        assert!(t
+            .iter()
+            .zip(z.iter())
+            .fold(true, |acc, x| acc && approximate_equal(*x.0, *x.1)),);
     }
 
     #[test]
@@ -185,11 +178,9 @@ mod tests {
             ] as Vec<f64>,
         )
         .unwrap();
-        assert_eq!(
-            t.iter()
-                .zip(z.iter())
-                .fold(true, |acc, x| acc && approximate_equal(*x.0, *x.1)),
-            true,
-        )
+        assert!(t
+            .iter()
+            .zip(z.iter())
+            .fold(true, |acc, x| acc && approximate_equal(*x.0, *x.1)),)
     }
 }
