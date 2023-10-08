@@ -143,7 +143,7 @@ mod tests {
             (0.1, 0.1),
         );
         let loss = model.train1d(input, target);
-        assert!(approximate_equal(loss, 2.302585092994046))
+        assert!(approximate_equal(loss, 2.30258509))
     }
 
     #[test]
@@ -155,6 +155,6 @@ mod tests {
             (0.1, 0.1),
         );
         let loss = model.train2d(input, target);
-        assert!(approximate_equal(loss, 23.02585092994046))
+        assert!(approximate_equal(loss, 23.02585092))
     }
 }
