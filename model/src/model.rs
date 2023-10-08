@@ -83,11 +83,6 @@ impl Model {
             .into_shape((relu_gradients.len(), 1))
             .unwrap()
             .dot(&input.to_owned().into_shape((1, input.len())).unwrap());
-        println!(
-            "LAYER 2 GRADIENTS {:?} \n LAYER 1 GRADIENTS {:?}",
-            layer2_gradients, layer1_gradients,
-        );
-
         self.update_weights((layer1_gradients, layer2_gradients));
         loss
     }
@@ -98,7 +93,7 @@ impl Model {
             input.into_iter().flatten().collect(),
         )
         .unwrap();
-        let layer1 = self.weights.0.dot(&input);
+        let layer1 = self.weights.0.dot(&input.t());
         let layer1_relu = ActivationFunctions::relu2d(layer1);
         let layer2 = self.weights.1.dot(&layer1_relu);
         let output = ActivationFunctions::logsoftmax2d(layer2);
@@ -112,11 +107,14 @@ impl Model {
         )
         .unwrap();
         let loss = -(&target * &output).sum();
-        let layer2_gradients = ActivationFunctions::logsoftmax_backward2d(output, target);
-        self.weights.1 = &self.weights.1 - &layer2_gradients * self.learning_rates.1;
-        let layer1_gradients =
-            ActivationFunctions::relu_backward2d(self.weights.1.dot(&input), layer2_gradients);
-        self.weights.0 = &self.weights.0 - &layer1_gradients * self.learning_rates.0;
+        let logsoftmax_gradients = ActivationFunctions::logsoftmax_backward2d(output, target);
+        let layer2_gradients = logsoftmax_gradients.dot(&layer1_relu.t());
+        let relu_gradients = ActivationFunctions::relu_backward2d(
+            layer1_relu,
+            self.weights.1.t().dot(&logsoftmax_gradients),
+        );
+        let layer1_gradients = relu_gradients.dot(&input);
+        self.update_weights((layer1_gradients, layer2_gradients));
         loss
     }
 
@@ -146,5 +144,17 @@ mod tests {
         );
         let loss = model.train1d(input, target);
         assert!(approximate_equal(loss, 2.302585092994046))
+    }
+
+    #[test]
+    fn test_train2d() {
+        let input = vec![vec![0.0; 784]; 10];
+        let target = vec![1; 10];
+        let mut model = Model::new(
+            (vec![vec![0.0; 784]; 128], vec![vec![0.0; 128]; 10]),
+            (0.1, 0.1),
+        );
+        let loss = model.train2d(input, target);
+        assert!(approximate_equal(loss, 23.02585092994046))
     }
 }
