@@ -1,0 +1,35 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Part A Debug (input.txt)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/target/debug/api",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "rust-gdb",
+            "dap-compilation": "cargo build",
+            "dap-compilation-dir": "${workspaceFolder}"
+        },
+        {
+            "name": "Run Part A Release (input.txt)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/target/release/api",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "rust-gdb",
+            "dap-compilation": "cargo build --release",
+            "dap-compilation-dir": "${workspaceFolder}"
+        }
+    ]
+}

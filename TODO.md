@@ -1,7 +1,10 @@
 - [x] Finish overall structure (cargo workspace...)
-- [ ] Finish model
-- [ ] write api and train mnist
+- [x] Finish model
+- [ ] Verify model works (check loss decreasing...)
+- [ ] write api
+- [ ] train mnsit
 - [x] create ui for site
-- [ ] make ui pretty
 - [x] write model and site interaction
+- [ ] Dockerize everything
 - [ ] tie it all together
+- [ ] make ui pretty

@@ -27,6 +27,21 @@ impl Model {
         }
     }
 
+    pub fn export_weights(&self) -> (Vec<Vec<f64>>, Vec<Vec<f64>>) {
+        let weights1 = self.weights.clone().0.into_raw_vec();
+        let weights2 = self.weights.clone().1.into_raw_vec();
+        (
+            weights1
+                .chunks(weights1.len() / weights1.len())
+                .map(|x| x.to_vec())
+                .collect(),
+            weights2
+                .chunks(weights2.len() / weights2.len())
+                .map(|x| x.to_vec())
+                .collect(),
+        )
+    }
+
     fn update_weights(&mut self, gradients: (Array2<f64>, Array2<f64>)) {
         self.weights.0 = &self.weights.0 - &gradients.0 * self.learning_rates.0;
         self.weights.1 = &self.weights.1 - &gradients.1 * self.learning_rates.1;
@@ -156,5 +171,16 @@ mod tests {
         );
         let loss = model.train2d(input, target);
         assert!(approximate_equal(loss, 23.02585092))
+    }
+
+    #[test]
+    fn test_inference() {
+        let input = vec![0.0; 784];
+        let model = Model::new(
+            (vec![vec![0.0; 784]; 128], vec![vec![0.0; 128]; 10]),
+            (0.1, 0.1),
+        );
+        let prediction = model.infer(input);
+        assert_eq!(prediction, 0);
     }
 }

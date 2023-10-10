@@ -56,7 +56,7 @@ pub fn grid(props: &GridProps) -> Html {
         let props = props.clone();
         Callback::from(move |(row, col): (usize, usize)| {
             let mut grid_local = (*grid_local_handler).clone();
-            grid_local[row][col] = !grid_local[row][col];
+            grid_local[row][col] = true;
             props.grid.emit(grid_local);
             grid_local_handler.set(grid_local);
         })
