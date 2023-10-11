@@ -7,6 +7,7 @@ use axum::{
 use csv;
 use dotenv::dotenv;
 use model;
+use model::util;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs::File;
@@ -52,10 +53,10 @@ async fn main() {
         println!("Creating weights file");
         let _ = weights_delete().await;
     }
-    // axum::Server::bind(&std::env::var("BIND_URL").unwrap().parse().unwrap())
-    //     .serve(app().into_make_service())
-    //     .await
-    //     .unwrap();
+    axum::Server::bind(&std::env::var("BIND_URL").unwrap().parse().unwrap())
+        .serve(app().into_make_service())
+        .await
+        .unwrap();
     println!("Listening on {}", std::env::var("BIND_URL").unwrap());
 }
 fn app() -> Router {
@@ -72,8 +73,8 @@ async fn handler() -> &'static str {
 }
 
 async fn weights_delete() -> Html<&'static str> {
-    let xdata = std::env::var("DATA").unwrap() + "/xtrain.csv";
-    let ydata = std::env::var("DATA").unwrap() + "/ytrain.csv";
+    let xdata = std::env::var("DATA").unwrap() + "/xtest.csv";
+    let ydata = std::env::var("DATA").unwrap() + "/ytest.csv";
     let mut xreader = csv::Reader::from_path(xdata).unwrap();
     let mut yreader = csv::Reader::from_path(ydata).unwrap();
     let mut xdata = Vec::new();
@@ -104,14 +105,14 @@ async fn weights_delete() -> Html<&'static str> {
             .collect(),
     };
     let mut model = model::Model::new(
-        (vec![vec![0.0; 784]; 128], vec![vec![0.0; 128]; 10]),
-        (0.1, 0.1),
+        (util::random_dist(128, 784), util::random_dist(10, 128)),
+        (0.001, 0.001),
     )
     .clone();
     for chunk in data.data.chunks(128).into_iter() {
         let loss = model.train2d(
             chunk.clone().into_iter().map(|x| x.image.clone()).collect(),
-            chunk.into_iter().map(|x| x.target as i32).collect(),
+            chunk.into_iter().map(|x| x.target as u8).collect(),
         );
         println!("Loss: {}", loss);
         let weights = model.export_weights();
@@ -142,7 +143,7 @@ async fn weights_patch(Json(data): Json<Data>) -> Json<Value> {
                     .into_iter()
                     .map(|x| x.image.clone())
                     .collect(),
-                data.data.into_iter().map(|x| x.target as i32).collect(),
+                data.data.into_iter().map(|x| x.target as u8).collect(),
             );
 
             Json(json!({ "loss": res }))
@@ -167,10 +168,6 @@ async fn weights_post(Json(weights): Json<Weights>) -> StatusCode {
 mod tests {
     use super::*;
 
-    fn approximate_equal(x: f64, y: f64) -> bool {
-        (x - y).abs() < 1e-4
-    }
-    // run before every #[cfg(test)]
     async fn setup() {
         dotenv().ok();
         if File::open(std::env::var("WEIGHTS").unwrap()).is_ok() {
@@ -199,9 +196,10 @@ mod tests {
             }],
         }))
         .await;
-        assert!(approximate_equal(
+        assert!(util::approximate_equal(
             response.0["loss"].as_f64().unwrap(),
-            2.30258509
+            2.30258509,
+            None
         ));
     }
 }

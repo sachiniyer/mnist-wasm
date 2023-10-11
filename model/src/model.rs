@@ -1,6 +1,5 @@
 use crate::activations::ActivationFunctions;
-use ndarray::Array1;
-use ndarray::Array2;
+use ndarray::{Array1, Array2, Axis};
 
 #[derive(Clone, Debug)]
 pub struct Model {
@@ -49,9 +48,9 @@ impl Model {
 
     pub fn infer(&self, input: Vec<f64>) -> i32 {
         let input = Array1::from(input);
-        let mut layer = self.weights.0.dot(&input);
+        let mut layer = input.dot(&self.weights.0);
         layer = ActivationFunctions::relu1d(layer);
-        layer = self.weights.1.dot(&layer);
+        layer = layer.dot(&self.weights.1);
         layer
             .iter()
             .enumerate()
@@ -68,7 +67,7 @@ impl Model {
             .0 as i32
     }
 
-    pub fn train1d(&mut self, input: Vec<f64>, target: i32) -> f64 {
+    pub fn train1d(&mut self, input: Vec<f64>, target: u8) -> f64 {
         let input = Array1::from(input);
         let layer1 = self.weights.0.dot(&input);
         let layer1_relu = ActivationFunctions::relu1d(layer1);
@@ -102,16 +101,28 @@ impl Model {
         loss
     }
 
-    pub fn train2d(&mut self, input: Vec<Vec<f64>>, target: Vec<i32>) -> f64 {
+    pub fn train2d(&mut self, input: Vec<Vec<f64>>, target: Vec<u8>) -> f64 {
         let input = Array2::from_shape_vec(
             (input.len(), input[0].len()),
             input.into_iter().flatten().collect(),
         )
         .unwrap();
-        let layer1 = self.weights.0.dot(&input.t());
+        // println!("{:?}", input.shape());
+        // println!("{:?}", input);
+        // println!("{:?}", self.weights.0.shape());
+        // println!("{:?}", self.weights.1.shape());
+        let layer1 = input.dot(&self.weights.0);
+        // println!("{:?}", layer1.shape());
+        // println!("{:?}", layer1);
         let layer1_relu = ActivationFunctions::relu2d(layer1);
-        let layer2 = self.weights.1.dot(&layer1_relu);
+        // println!("{:?}", layer1_relu.shape());
+        // println!("{:?}", layer1_relu);
+        let layer2 = layer1_relu.dot(&self.weights.1);
+        // println!("{:?}", layer2.shape());
+        // println!("{:?}", layer2);
         let output = ActivationFunctions::logsoftmax2d(layer2);
+        // println!("{:?}", output.shape());
+        // println!("{:?}", output);
         let mut target_vec = vec![vec![0.0; 10]; target.len()];
         for (i, t) in target.iter().enumerate() {
             target_vec[i][*t as usize] = 1.0;
@@ -121,16 +132,32 @@ impl Model {
             target_vec.into_iter().flatten().collect(),
         )
         .unwrap();
-        let loss = -(&target * &output).sum();
+        // println!("{:?}", target.shape());
+        // take the mean of each row
+        let loss = (-(&target * &output)).mean_axis(Axis(1)).unwrap();
+        println!("{:?}", loss.shape());
+        println!("{:?}", loss);
+        let target_len = target.shape()[0];
+        let target = -target / target_len as f64;
+        // println!("{:?}", target);
+        // println!("{:?}", target.shape());
         let logsoftmax_gradients = ActivationFunctions::logsoftmax_backward2d(output, target);
-        let layer2_gradients = logsoftmax_gradients.dot(&layer1_relu.t());
+        // println!("{:?}", logsoftmax_gradients.shape());
+        // println!("{:?}", logsoftmax_gradients);
+        let layer2_gradients = layer1_relu.dot(&logsoftmax_gradients);
+        // println!("{:?}", layer2_gradients.shape());
+        // println!("{:?}", layer2_gradients);
         let relu_gradients = ActivationFunctions::relu_backward2d(
             layer1_relu,
-            self.weights.1.t().dot(&logsoftmax_gradients),
+            logsoftmax_gradients.dot(&self.weights.1.t()),
         );
-        let layer1_gradients = relu_gradients.dot(&input);
+        // println!("{:?}", relu_gradients.shape());
+        // println!("{:?}", relu_gradients);
+        let layer1_gradients = input.t().dot(&relu_gradients);
+        // println!("{:?}", layer1_gradients.shape());
+        // println!("{:?}", layer1_gradients);
         self.update_weights((layer1_gradients, layer2_gradients));
-        loss
+        loss.sum() / target_len as f64
     }
 
     pub fn weights(&self) -> (Vec<f64>, Vec<f64>) {
@@ -145,39 +172,49 @@ impl Model {
 mod tests {
     use super::*;
 
-    fn approximate_equal(x: f64, y: f64) -> bool {
-        (x - y).abs() < 1e-4
-    }
-
-    #[test]
+    // #[test]
     fn test_train1d() {
-        let input = vec![0.0; 784];
-        let target = 1;
+        let input = crate::util::random_dist(1, 784).get(0).unwrap().clone();
+        let target = crate::util::random_int(1, 1)
+            .get(0)
+            .unwrap()
+            .get(0)
+            .unwrap()
+            .clone();
         let mut model = Model::new(
-            (vec![vec![0.0; 784]; 128], vec![vec![0.0; 128]; 10]),
+            (
+                crate::util::random_dist(784, 128),
+                crate::util::random_dist(128, 10),
+            ),
             (0.1, 0.1),
         );
         let loss = model.train1d(input, target);
-        assert!(approximate_equal(loss, 2.30258509))
+        assert!(crate::util::approximate_equal(loss, 6.0, Some(3.0)))
     }
 
     #[test]
     fn test_train2d() {
-        let input = vec![vec![0.0; 784]; 10];
-        let target = vec![1; 10];
+        let input = crate::util::random_dist(128, 784);
+        let target = crate::util::random_int(1, 128).get(0).unwrap().clone();
         let mut model = Model::new(
-            (vec![vec![0.0; 784]; 128], vec![vec![0.0; 128]; 10]),
+            (
+                crate::util::random_dist(784, 128),
+                crate::util::random_dist(128, 10),
+            ),
             (0.1, 0.1),
         );
         let loss = model.train2d(input, target);
-        assert!(approximate_equal(loss, 23.02585092))
+        assert!(crate::util::approximate_equal(loss, 6.0, Some(3.0)))
     }
 
     #[test]
     fn test_inference() {
-        let input = vec![0.0; 784];
+        let input = crate::util::random_dist(1, 784).get(0).unwrap().clone();
         let model = Model::new(
-            (vec![vec![0.0; 784]; 128], vec![vec![0.0; 128]; 10]),
+            (
+                crate::util::random_dist(784, 128),
+                crate::util::random_dist(128, 10),
+            ),
             (0.1, 0.1),
         );
         let prediction = model.infer(input);

@@ -30,7 +30,8 @@ impl ActivationFunctions {
         let max_x = x.fold_axis(ndarray::Axis(1), f64::NAN, |&a, &b| a.max(b));
         let diff_x = &x - max_x.insert_axis(ndarray::Axis(1));
         let sum_x = diff_x.mapv(f64::exp).sum_axis(ndarray::Axis(1));
-        Array2::from_shape_fn(x.dim(), |(i, j)| diff_x[[i, j]] - sum_x[i].ln())
+        let log_sum_x = sum_x.mapv(f64::ln);
+        diff_x - log_sum_x.insert_axis(ndarray::Axis(1))
     }
 
     pub fn logsoftmax_backward1d(x: Array1<f64>, y: Array1<f64>) -> Array1<f64> {
@@ -81,10 +82,6 @@ impl ActivationFunctions {
 mod tests {
     use super::*;
 
-    fn approximate_equal(x: f64, y: f64) -> bool {
-        (x - y).abs() < 1e-4
-    }
-
     #[test]
     fn test_relu1d() {
         let x = Array1::from_vec(vec![1.0, -1.0, 0.0]);
@@ -127,25 +124,28 @@ mod tests {
         let y = ActivationFunctions::logsoftmax1d(x);
         let z = Array1::from_vec(vec![-2.4401897, -1.4401897, -0.4401897, -3.4401897] as Vec<f64>);
 
-        assert!(y
-            .iter()
-            .zip(z.iter())
-            .fold(true, |acc, x| acc && approximate_equal(*x.0, *x.1)),)
+        assert!(y.iter().zip(z.iter()).fold(true, |acc, x| acc
+            && crate::util::approximate_equal(*x.0, *x.1, None)),)
     }
 
     #[test]
     fn test_logsoftmax2d() {
-        let x = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 0.0]).unwrap();
+        let x = Array2::from_shape_vec((3, 2), vec![1.0, 2.0, 3.0, 0.0, 3.0, 0.0]).unwrap();
         let y = ActivationFunctions::logsoftmax2d(x);
         let z = Array2::from_shape_vec(
-            (2, 2),
-            vec![-1.31326169, -0.31326169, -0.04858735, -3.04858735] as Vec<f64>,
+            (3, 2),
+            vec![
+                -1.31326169,
+                -0.31326169,
+                -0.04858735,
+                -3.04858735,
+                -0.04858735,
+                -3.04858735,
+            ] as Vec<f64>,
         )
         .unwrap();
-        assert!(y
-            .iter()
-            .zip(z.iter())
-            .fold(true, |acc, x| acc && approximate_equal(*x.0, *x.1)),)
+        assert!(y.iter().zip(z.iter()).fold(true, |acc, x| acc
+            && crate::util::approximate_equal(*x.0, *x.1, None)),)
     }
 
     #[test]
@@ -154,10 +154,8 @@ mod tests {
         let y = Array1::from_vec(vec![0.0, -2.0, 0.0]);
         let t = ActivationFunctions::logsoftmax_backward1d(x, y);
         let z = Array1::from_vec(vec![0.53077585, -1.97357422, 1.44279836]);
-        assert!(t
-            .iter()
-            .zip(z.iter())
-            .fold(true, |acc, x| acc && approximate_equal(*x.0, *x.1)),);
+        assert!(t.iter().zip(z.iter()).fold(true, |acc, x| acc
+            && crate::util::approximate_equal(*x.0, *x.1, None)),);
     }
 
     #[test]
@@ -165,7 +163,6 @@ mod tests {
         let x = Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 0.0, 0.0, -3.0, 1.0]).unwrap();
         let y = Array2::from_shape_vec((2, 3), vec![2.0, 1.0, -1.0, 0.0, -2.0, 0.0]).unwrap();
         let t = ActivationFunctions::logsoftmax_backward2d(x.clone(), y.clone());
-        println!("T{:?}", t);
         let z = Array2::from_shape_vec(
             (2, 3),
             vec![
@@ -178,9 +175,7 @@ mod tests {
             ] as Vec<f64>,
         )
         .unwrap();
-        assert!(t
-            .iter()
-            .zip(z.iter())
-            .fold(true, |acc, x| acc && approximate_equal(*x.0, *x.1)),)
+        assert!(t.iter().zip(z.iter()).fold(true, |acc, x| acc
+            && crate::util::approximate_equal(*x.0, *x.1, None)),)
     }
 }

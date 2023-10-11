@@ -99,7 +99,7 @@ pub fn home() -> Html {
             let target: Option<EventTarget> = e.target();
             let input = target.and_then(|t| t.dyn_into::<HtmlInputElement>().ok());
             if let Some(input) = input {
-                input_handle.set(input.value().parse::<i32>().unwrap());
+                input_handle.set(input.value().parse::<u8>().unwrap());
             }
         })
     };
