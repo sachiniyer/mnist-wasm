@@ -107,22 +107,10 @@ impl Model {
             input.into_iter().flatten().collect(),
         )
         .unwrap();
-        // println!("{:?}", input.shape());
-        // println!("{:?}", input);
-        // println!("{:?}", self.weights.0.shape());
-        // println!("{:?}", self.weights.1.shape());
         let layer1 = input.dot(&self.weights.0);
-        // println!("{:?}", layer1.shape());
-        // println!("{:?}", layer1);
         let layer1_relu = ActivationFunctions::relu2d(layer1);
-        // println!("{:?}", layer1_relu.shape());
-        // println!("{:?}", layer1_relu);
         let layer2 = layer1_relu.dot(&self.weights.1);
-        // println!("{:?}", layer2.shape());
-        // println!("{:?}", layer2);
         let output = ActivationFunctions::logsoftmax2d(layer2);
-        // println!("{:?}", output.shape());
-        // println!("{:?}", output);
         let mut target_vec = vec![vec![0.0; 10]; target.len()];
         for (i, t) in target.iter().enumerate() {
             target_vec[i][*t as usize] = 1.0;
@@ -132,30 +120,16 @@ impl Model {
             target_vec.into_iter().flatten().collect(),
         )
         .unwrap();
-        // println!("{:?}", target.shape());
-        // take the mean of each row
         let loss = (-(&target * &output)).mean_axis(Axis(1)).unwrap();
-        println!("{:?}", loss.shape());
-        println!("{:?}", loss);
         let target_len = target.shape()[0];
         let target = -target / target_len as f64;
-        // println!("{:?}", target);
-        // println!("{:?}", target.shape());
         let logsoftmax_gradients = ActivationFunctions::logsoftmax_backward2d(output, target);
-        // println!("{:?}", logsoftmax_gradients.shape());
-        // println!("{:?}", logsoftmax_gradients);
         let layer2_gradients = layer1_relu.dot(&logsoftmax_gradients);
-        // println!("{:?}", layer2_gradients.shape());
-        // println!("{:?}", layer2_gradients);
         let relu_gradients = ActivationFunctions::relu_backward2d(
             layer1_relu,
             logsoftmax_gradients.dot(&self.weights.1.t()),
         );
-        // println!("{:?}", relu_gradients.shape());
-        // println!("{:?}", relu_gradients);
         let layer1_gradients = input.t().dot(&relu_gradients);
-        // println!("{:?}", layer1_gradients.shape());
-        // println!("{:?}", layer1_gradients);
         self.update_weights((layer1_gradients, layer2_gradients));
         loss.sum() / target_len as f64
     }
