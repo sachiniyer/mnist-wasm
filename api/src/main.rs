@@ -53,10 +53,10 @@ async fn main() {
         println!("Creating weights file");
         let _ = weights_delete().await;
     }
-    axum::Server::bind(&std::env::var("BIND_URL").unwrap().parse().unwrap())
-        .serve(app().into_make_service())
-        .await
-        .unwrap();
+    // axum::Server::bind(&std::env::var("BIND_URL").unwrap().parse().unwrap())
+    //     .serve(app().into_make_service())
+    //     .await
+    //     .unwrap();
     println!("Listening on {}", std::env::var("BIND_URL").unwrap());
 }
 fn app() -> Router {
@@ -73,8 +73,8 @@ async fn handler() -> &'static str {
 }
 
 async fn weights_delete() -> Html<&'static str> {
-    let xdata = std::env::var("DATA").unwrap() + "/xtest.csv";
-    let ydata = std::env::var("DATA").unwrap() + "/ytest.csv";
+    let xdata = std::env::var("DATA").unwrap() + "/xtrain.csv";
+    let ydata = std::env::var("DATA").unwrap() + "/ytrain.csv";
     let mut xreader = csv::Reader::from_path(xdata).unwrap();
     let mut yreader = csv::Reader::from_path(ydata).unwrap();
     let mut xdata = Vec::new();
@@ -84,11 +84,12 @@ async fn weights_delete() -> Html<&'static str> {
         let y = y.unwrap();
         let mut xdata_single = Vec::new();
         for i in 0..x.len() {
-            if x[i].parse::<f64>().unwrap() > 0.0 {
-                xdata_single.push(1.0);
-            } else {
-                xdata_single.push(0.0);
-            }
+            // if x[i].parse::<f64>().unwrap() > 0.0 {
+            //     xdata_single.push(1.0);
+            // } else {
+            //     xdata_single.push(0.0);
+            // }
+            xdata_single.push(x[i].parse::<f64>().unwrap());
         }
         xdata.push(xdata_single);
         ydata.push(y[0].parse::<f64>().unwrap().round() as u8);
@@ -105,16 +106,29 @@ async fn weights_delete() -> Html<&'static str> {
             .collect(),
     };
     let mut model = model::Model::new(
-        (util::random_dist(128, 784), util::random_dist(10, 128)),
+        (util::random_dist(784, 128), util::random_dist(128, 10)),
         (0.001, 0.001),
     )
     .clone();
-    for chunk in data.data.chunks(128).into_iter() {
+    let batch_size = 128;
+    for chunk in data.data.chunks(batch_size).into_iter() {
+        if chunk.len() != batch_size {
+            break;
+        }
         let loss = model.train2d(
             chunk.clone().into_iter().map(|x| x.image.clone()).collect(),
             chunk.into_iter().map(|x| x.target as u8).collect(),
         );
+        let accuracy = chunk.into_iter().fold(0, |acc, x| {
+            if model.infer(x.image.clone()) == x.target {
+                acc + 1
+            } else {
+                acc
+            }
+        }) as f64
+            / batch_size as f64;
         println!("Loss: {}", loss);
+        println!("Accuracy: {}", accuracy);
         let weights = model.export_weights();
         file.write_all(
             serde_json::to_string(&Weights { weights })

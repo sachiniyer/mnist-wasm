@@ -46,7 +46,7 @@ impl Model {
         self.weights.1 = &self.weights.1 - &gradients.1 * self.learning_rates.1;
     }
 
-    pub fn infer(&self, input: Vec<f64>) -> i32 {
+    pub fn infer(&self, input: Vec<f64>) -> u8 {
         let input = Array1::from(input);
         let mut layer = input.dot(&self.weights.0);
         layer = ActivationFunctions::relu1d(layer);
@@ -64,7 +64,7 @@ impl Model {
                     }
                 },
             )
-            .0 as i32
+            .0 as u8
     }
 
     pub fn train1d(&mut self, input: Vec<f64>, target: u8) -> f64 {
