@@ -1,11 +1,11 @@
 - [x] Finish overall structure (cargo workspace...)
 - [x] Finish model
 - [x] Verify model works (check loss decreasing...)
-- [ ] write api
+- [x] write api
 - [x] train mnsit
 - [x] create ui for site
 - [x] write model and site interaction
 - [ ] Dockerize everything
 - [ ] tie it all together
 - [ ] make ui pretty
-- [ ] decide whether to use bool or f64
+- [x] decide whether to use bool or f64
