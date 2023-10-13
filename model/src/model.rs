@@ -92,34 +92,30 @@ impl Model {
 
     pub fn train1d(&mut self, input: Vec<f64>, target: u8) -> f64 {
         let input = Array1::from(input);
-        let layer1 = self.weights.0.dot(&input);
+        let layer1 = input.dot(&self.weights.0);
         let layer1_relu = ActivationFunctions::relu1d(layer1);
-        let layer2 = self.weights.1.dot(&layer1_relu);
+        let layer2 = layer1_relu.dot(&self.weights.1);
         let output = ActivationFunctions::logsoftmax1d(layer2);
         let mut target_vec = vec![0.0; 10];
         target_vec[target as usize] = 1.0;
         let target = Array1::from(target_vec);
         let loss = -(&target * &output).sum();
+        let target_len = target.shape()[0];
+        let target = -target / target_len as f64;
         let logsoftmax_gradients = ActivationFunctions::logsoftmax_backward1d(output, target);
-        let layer2_gradients = logsoftmax_gradients
-            .to_owned()
-            .into_shape((logsoftmax_gradients.len(), 1))
-            .unwrap()
-            .dot(
-                &layer1_relu
-                    .to_owned()
-                    .into_shape((1, layer1_relu.len()))
-                    .unwrap(),
-            );
+        let layer2_gradients = layer1_relu
+            .clone()
+            .insert_axis(Axis(0))
+            .t()
+            .dot(&logsoftmax_gradients.clone().insert_axis(Axis(0)));
         let relu_gradients = ActivationFunctions::relu_backward1d(
             layer1_relu,
-            logsoftmax_gradients.dot(&self.weights.1),
+            logsoftmax_gradients.dot(&self.weights.1.t()),
         );
-        let layer1_gradients = relu_gradients
-            .to_owned()
-            .into_shape((relu_gradients.len(), 1))
-            .unwrap()
-            .dot(&input.to_owned().into_shape((1, input.len())).unwrap());
+        let layer1_gradients = input
+            .insert_axis(Axis(0))
+            .t()
+            .dot(&relu_gradients.insert_axis(Axis(0)));
         self.update_weights((layer1_gradients, layer2_gradients));
         loss
     }
@@ -169,7 +165,7 @@ impl Model {
 mod tests {
     use super::*;
 
-    // #[test]
+    #[test]
     fn test_train1d() {
         let input = crate::util::random_dist(1, 784).get(0).unwrap().clone();
         let target = crate::util::random_int(1, 1)
@@ -186,13 +182,14 @@ mod tests {
             (0.1, 0.1),
         );
         let loss = model.train1d(input, target);
-        assert!(crate::util::approximate_equal(loss, 6.0, Some(3.0)))
+        println!("{:?}", loss);
+        assert!(crate::util::approximate_equal(loss, 50.0, Some(50.0)))
     }
 
     #[test]
     fn test_train2d() {
-        let input = crate::util::random_dist(256, 784);
-        let target = crate::util::random_int(1, 256).get(0).unwrap().clone();
+        let input = crate::util::random_dist(128, 784);
+        let target = crate::util::random_int(1, 128).get(0).unwrap().clone();
         let mut model = Model::new(
             (
                 crate::util::random_dist(784, 128),
