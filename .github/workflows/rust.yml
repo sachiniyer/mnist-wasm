@@ -10,6 +10,13 @@ env:
   CARGO_TERM_COLOR: always
   WEIGHTS: "weights.txt"
   BIND_URL: "127.0.0.1:3000"
+  DATA: "data.txt"
+  LEARNING_RATE: "0.1"
+  BATCH_SIZE: "128"
+  TRAIN_ITER: "3000"
+  TEST_ITER: "500"
+  OUTPUT_LEVEL: "1"
+  RUST_BACKTRACE: "1"
 
 jobs:
   build:
