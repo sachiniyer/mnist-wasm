@@ -288,7 +288,7 @@ mod tests {
         }
         let _ = File::create(get_env("WEIGHTS")).unwrap();
         let _ = weights_post(Json(Weights {
-            weights: (vec![vec![0.0; 784]; 128], vec![vec![0.0; 128]; 10]),
+            weights: (util::random_dist(784, 128), util::random_dist(128, 10)),
         }))
         .await;
     }
