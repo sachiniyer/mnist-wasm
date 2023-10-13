@@ -27,11 +27,11 @@ impl ActivationFunctions {
     }
 
     pub fn logsoftmax2d(x: Array2<f64>) -> Array2<f64> {
-        let max_x = x.fold_axis(ndarray::Axis(1), f64::NAN, |&a, &b| a.max(b));
-        let diff_x = &x - max_x.insert_axis(ndarray::Axis(1));
-        let sum_x = diff_x.mapv(f64::exp).sum_axis(ndarray::Axis(1));
+        let max_x = x.fold_axis(Axis(1), f64::NAN, |&a, &b| a.max(b));
+        let diff_x = &x - max_x.insert_axis(Axis(1));
+        let sum_x = diff_x.mapv(f64::exp).sum_axis(Axis(1));
         let log_sum_x = sum_x.mapv(f64::ln);
-        diff_x - log_sum_x.insert_axis(ndarray::Axis(1))
+        diff_x - log_sum_x.insert_axis(Axis(1))
     }
 
     pub fn logsoftmax_backward1d(x: Array1<f64>, y: Array1<f64>) -> Array1<f64> {
@@ -47,12 +47,10 @@ impl ActivationFunctions {
 
     pub fn logsoftmax_backward2d(x: Array2<f64>, y: Array2<f64>) -> Array2<f64> {
         let softmax_x = (&x
-            - &x.fold_axis(ndarray::Axis(1), f64::NAN, |&a, &b| a.max(b))
-                .insert_axis(ndarray::Axis(1)))
+            - &x.fold_axis(Axis(1), f64::NAN, |&a, &b| a.max(b))
+                .insert_axis(Axis(1)))
             .mapv(f64::exp);
-        let softmax_sum = softmax_x
-            .sum_axis(ndarray::Axis(1))
-            .insert_axis(ndarray::Axis(1));
+        let softmax_sum = softmax_x.sum_axis(Axis(1)).insert_axis(Axis(1));
         let softmax = softmax_x / &softmax_sum;
         let n = x.shape()[1];
         let m = x.shape()[0];
