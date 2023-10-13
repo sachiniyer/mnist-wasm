@@ -46,7 +46,7 @@ impl Model {
         self.weights.1 = &self.weights.1 - &gradients.1 * self.learning_rates.1;
     }
 
-    pub fn infer(&self, input: Vec<f64>) -> u8 {
+    pub fn infer1d(&self, input: Vec<f64>) -> u8 {
         let input = Array1::from(input);
         let mut layer = input.dot(&self.weights.0);
         layer = ActivationFunctions::relu1d(layer);
@@ -54,17 +54,40 @@ impl Model {
         layer
             .iter()
             .enumerate()
-            .fold(
-                (0, f64::NAN),
-                |(i, max), (j, &x)| {
-                    if x > max {
-                        (j, x)
-                    } else {
-                        (i, max)
-                    }
-                },
-            )
+            .fold((0, 0.0), |(max_index, max_value), (index, value)| {
+                if value > &max_value {
+                    (index, *value)
+                } else {
+                    (max_index, max_value)
+                }
+            })
             .0 as u8
+    }
+
+    pub fn infer2d(&self, input: Vec<Vec<f64>>) -> Vec<u8> {
+        let input = Array2::from_shape_vec(
+            (input.len(), input[0].len()),
+            input.into_iter().flatten().collect(),
+        )
+        .unwrap();
+        let mut layer = input.dot(&self.weights.0);
+        layer = ActivationFunctions::relu2d(layer);
+        layer = layer.dot(&self.weights.1);
+        layer
+            .axis_iter(Axis(0))
+            .map(|x| {
+                x.iter()
+                    .enumerate()
+                    .fold((0, 0.0), |(max_index, max_value), (index, value)| {
+                        if value > &max_value {
+                            (index, *value)
+                        } else {
+                            (max_index, max_value)
+                        }
+                    })
+                    .0 as u8
+            })
+            .collect()
     }
 
     pub fn train1d(&mut self, input: Vec<f64>, target: u8) -> f64 {
@@ -124,7 +147,7 @@ impl Model {
         let target_len = target.shape()[0];
         let target = -target / target_len as f64;
         let logsoftmax_gradients = ActivationFunctions::logsoftmax_backward2d(output, target);
-        let layer2_gradients = layer1_relu.dot(&logsoftmax_gradients);
+        let layer2_gradients = layer1_relu.t().dot(&logsoftmax_gradients);
         let relu_gradients = ActivationFunctions::relu_backward2d(
             layer1_relu,
             logsoftmax_gradients.dot(&self.weights.1.t()),
@@ -168,8 +191,8 @@ mod tests {
 
     #[test]
     fn test_train2d() {
-        let input = crate::util::random_dist(128, 784);
-        let target = crate::util::random_int(1, 128).get(0).unwrap().clone();
+        let input = crate::util::random_dist(256, 784);
+        let target = crate::util::random_int(1, 256).get(0).unwrap().clone();
         let mut model = Model::new(
             (
                 crate::util::random_dist(784, 128),
@@ -182,7 +205,7 @@ mod tests {
     }
 
     #[test]
-    fn test_inference() {
+    fn test_inference1d() {
         let input = crate::util::random_dist(1, 784).get(0).unwrap().clone();
         let model = Model::new(
             (
@@ -191,7 +214,22 @@ mod tests {
             ),
             (0.1, 0.1),
         );
-        let prediction = model.infer(input);
-        assert_eq!(prediction, 0);
+        let prediction = model.infer1d(input);
+        let targets: Vec<u8> = (0..10).collect();
+        assert!(targets.contains(&prediction));
+    }
+
+    #[test]
+    fn test_inference2d() {
+        let input = crate::util::random_dist(256, 784);
+        let model = Model::new(
+            (
+                crate::util::random_dist(784, 128),
+                crate::util::random_dist(128, 10),
+            ),
+            (0.1, 0.1),
+        );
+        let prediction = model.infer2d(input);
+        assert_eq!(prediction.len(), 256);
     }
 }
