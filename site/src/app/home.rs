@@ -30,7 +30,7 @@ pub fn home() -> Html {
                     .flatten()
                     .map(|x| if *x { 1.0 } else { 0.0 })
                     .collect::<Vec<f64>>();
-                inference_handler.set(model.infer(grid_infer));
+                inference_handler.set(model.infer1d(grid_infer));
             });
         })
     };
