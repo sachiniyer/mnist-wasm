@@ -182,6 +182,7 @@ fn check_envs() {
         res.push("OUTPUT_LEVEL");
     }
     if res.len() != 0 {
+        println!("ENV VARS: {} are not set", res.join(", "));
         panic!("ENV VARS: {} are not set", res.join(", "));
     }
 }
