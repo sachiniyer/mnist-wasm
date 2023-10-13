@@ -64,8 +64,9 @@ async fn handler() -> &'static str {
 
 async fn weights_patch(Json(data): Json<Data>) -> Json<Value> {
     let file = File::open(get_env("WEIGHTS")).unwrap();
+    let lrate = get_env("LEARNING_RATE").parse::<f64>().unwrap();
     let weights: Weights = serde_json::from_reader(file).unwrap();
-    let mut model = model::Model::new(weights.weights, (0.1, 0.1));
+    let mut model = model::Model::new(weights.weights, (lrate, lrate));
     match data.data.len() {
         0 => Json(json!({"loss": 0})),
         1 => {
