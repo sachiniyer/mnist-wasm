@@ -43,11 +43,11 @@ async fn main() {
         let _ = weights_delete().await;
     }
 
+    output_filter(format!("Listening on {}", bind_url), 0);
     axum::Server::bind(&bind_url.parse().unwrap())
         .serve(app().into_make_service())
         .await
         .unwrap();
-    output_filter(format!("Listening on {}", bind_url), 0);
 }
 fn app() -> Router {
     Router::new()

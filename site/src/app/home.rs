@@ -1,4 +1,5 @@
 use crate::app::Grid;
+use model::util;
 use model::Model;
 use wasm_bindgen::JsCast;
 use web_sys::{EventTarget, HtmlInputElement};
@@ -13,7 +14,7 @@ pub fn home() -> Html {
     let loss_handle = use_state(|| 0.0);
     let model_handle = use_state(|| {
         Model::new(
-            (vec![vec![0.0; 128]; 728], vec![vec![0.0; 10]; 128]),
+            (util::random_dist(784, 128), util::random_dist(128, 10)),
             (0.0, 0.0),
         )
     });
@@ -86,7 +87,6 @@ pub fn home() -> Html {
                     .map(|x| if *x { 1.0 } else { 0.0 })
                     .collect::<Vec<f64>>();
                 let loss = model.train1d(grid_train, input);
-                web_sys::console::log_1(&format!("loss: {}", loss).into());
                 loss_handle.set(loss);
                 model_handle.set(model);
             });

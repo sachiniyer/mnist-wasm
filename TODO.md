@@ -5,7 +5,9 @@
 - [x] train mnsit
 - [x] create ui for site
 - [x] write model and site interaction
-- [ ] Dockerize everything
-- [ ] tie it all together
-- [ ] make ui pretty
 - [x] decide whether to use bool or f64
+- [x] hook model and frontend together
+- [ ] hook api and frontend together
+- [ ] Dockerize everything
+- [ ] make ui pretty
+- [ ] Deploy
