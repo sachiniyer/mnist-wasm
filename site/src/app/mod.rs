@@ -1,6 +1,7 @@
 use yew::prelude::*;
 use yew_router::prelude::*;
 
+pub mod api;
 pub mod grid;
 pub mod home;
 

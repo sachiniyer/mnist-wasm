@@ -1,3 +1,4 @@
+use crate::app::api::get_weights;
 use crate::app::Grid;
 use model::util;
 use model::Model;
@@ -104,6 +105,22 @@ pub fn home() -> Html {
         })
     };
 
+    let weights_callback = {
+        let model_handle = model_handle.clone();
+        Callback::from(move |_| {
+            let model_handle = model_handle.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let weights = get_weights().await;
+                let new_model = Model::new(weights.weights, (0.0, 0.0));
+                model_handle.set(new_model);
+                web_sys::window()
+                    .unwrap()
+                    .alert_with_message("Weights loaded from API")
+                    .unwrap();
+            });
+        })
+    };
+
     html! {
         <div>
             <h1>{ "MNIST WASM" }</h1>
@@ -123,7 +140,9 @@ pub fn home() -> Html {
                 <input onchange={ input_callback }type="number" id="target" name="target" min="0" max="9" />
                 <div>{ format!("Loss {}", *loss_handle) }</div>
             </div>
-
+            <div>
+                <button onclick={ weights_callback }>{ "Load weights from API" }</button>
+            </div>
         </div>
     }
 }

@@ -27,18 +27,15 @@ impl Model {
     }
 
     pub fn export_weights(&self) -> (Vec<Vec<f64>>, Vec<Vec<f64>>) {
-        let weights1 = self.weights.clone().0.into_raw_vec();
-        let weights2 = self.weights.clone().1.into_raw_vec();
-        (
-            weights1
-                .chunks(weights1.len() / weights1.len())
-                .map(|x| x.to_vec())
-                .collect(),
-            weights2
-                .chunks(weights2.len() / weights2.len())
-                .map(|x| x.to_vec())
-                .collect(),
-        )
+        let mut res0 = Vec::new();
+        let mut res1 = Vec::new();
+        for i in self.weights.0.axis_iter(Axis(0)) {
+            res0.push(i.clone().to_vec());
+        }
+        for i in self.weights.1.axis_iter(Axis(0)) {
+            res1.push(i.clone().to_vec());
+        }
+        (res0, res1)
     }
 
     fn update_weights(&mut self, gradients: (Array2<f64>, Array2<f64>)) {
@@ -227,5 +224,21 @@ mod tests {
         );
         let prediction = model.infer2d(input);
         assert_eq!(prediction.len(), 256);
+    }
+
+    #[test]
+    fn test_export() {
+        let model = Model::new(
+            (
+                crate::util::random_dist(784, 128),
+                crate::util::random_dist(128, 10),
+            ),
+            (0.1, 0.1),
+        );
+        let weights = model.export_weights();
+        assert_eq!(weights.0.len(), 784);
+        assert_eq!(weights.0[0].len(), 128);
+        assert_eq!(weights.1.len(), 128);
+        assert_eq!(weights.1[0].len(), 10);
     }
 }

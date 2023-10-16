@@ -1,6 +1,7 @@
 use rand;
 use rand::distributions::uniform;
 use rand::Rng;
+use serde_derive::{Deserialize, Serialize};
 
 pub fn random_dist(m: u32, h: u32) -> Vec<Vec<f64>> {
     let mut weights = Vec::new();
@@ -33,4 +34,9 @@ pub fn approximate_equal(x: f64, y: f64, bound: Option<f64>) -> bool {
         Some(bound) => (x - y).abs() < bound,
         None => (x - y).abs() < 1e-4,
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Weights {
+    pub weights: (Vec<Vec<f64>>, Vec<Vec<f64>>),
 }

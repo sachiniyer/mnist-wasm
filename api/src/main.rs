@@ -8,17 +8,13 @@ use csv;
 use dotenv::dotenv;
 use model;
 use model::util;
+use model::util::Weights;
 use rand;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs::File;
-use std::io::Write;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Weights {
-    weights: (Vec<Vec<f64>>, Vec<Vec<f64>>),
-}
+use tower_http::cors::{Any, CorsLayer};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct DataSingle {
@@ -50,22 +46,33 @@ async fn main() {
         .unwrap();
 }
 fn app() -> Router {
+    let cors = CorsLayer::new().allow_origin(Any);
     Router::new()
         .route("/", get(handler))
         .route("/weights", delete(weights_delete))
         .route("/weights", get(weights_get))
         .route("/weights", post(weights_post))
         .route("/weights", patch(weights_patch))
+        .layer(cors)
 }
 
 async fn handler() -> &'static str {
     "This is the mnist-wasm api"
 }
 
+async fn weights_get() -> Json<Value> {
+    let weights: Weights = get_weights();
+    Json(json!({ "weights": weights.weights }))
+}
+
+async fn weights_post(Json(weights): Json<Weights>) -> StatusCode {
+    write_weights(&weights);
+    StatusCode::OK
+}
+
 async fn weights_patch(Json(data): Json<Data>) -> Json<Value> {
-    let file = File::open(get_env("WEIGHTS")).unwrap();
     let lrate = get_env("LEARNING_RATE").parse::<f64>().unwrap();
-    let weights: Weights = serde_json::from_reader(file).unwrap();
+    let weights: Weights = get_weights();
     let mut model = model::Model::new(weights.weights, (lrate, lrate));
     match data.data.len() {
         0 => Json(json!({"loss": 0})),
@@ -86,19 +93,6 @@ async fn weights_patch(Json(data): Json<Data>) -> Json<Value> {
             Json(json!({ "loss": res }))
         }
     }
-}
-
-async fn weights_get() -> Json<Value> {
-    let file = File::open(get_env("WEIGHTS")).unwrap();
-    let weights: Weights = serde_json::from_reader(file).unwrap();
-    Json(json!({ "weights": weights.weights }))
-}
-
-async fn weights_post(Json(weights): Json<Weights>) -> StatusCode {
-    let mut file = File::create(get_env("WEIGHTS")).unwrap();
-    file.write_all(serde_json::to_string(&weights).unwrap().as_bytes())
-        .unwrap();
-    StatusCode::OK
 }
 
 async fn weights_delete() -> Html<&'static str> {
@@ -197,6 +191,28 @@ fn output_filter(input: String, level: usize) {
     }
 }
 
+fn write_weights(weights: &Weights) {
+    let temp = get_env("WEIGHTS") + ".tmp";
+    if File::open(&temp).is_ok() {
+        std::fs::remove_file(&temp).unwrap();
+    }
+    let mut temp_file = File::create(&temp).unwrap();
+    serde_json::to_writer(&mut temp_file, &weights).unwrap();
+    std::fs::rename(temp, get_env("WEIGHTS")).unwrap();
+}
+
+fn get_weights() -> Weights {
+    let file = File::open(get_env("WEIGHTS")).unwrap();
+    serde_json::from_reader(file).unwrap()
+}
+
+fn sync_weights(model: &model::Model) {
+    let weights = Weights {
+        weights: model.export_weights(),
+    };
+    write_weights(&weights);
+}
+
 fn read_data(xdata: String, ydata: String) -> Data {
     let mut xreader = csv::Reader::from_path(xdata).unwrap();
     let mut yreader = csv::Reader::from_path(ydata).unwrap();
@@ -231,20 +247,6 @@ fn get_sample_block(data: &Data, size: usize) -> Vec<DataSingle> {
     data.data.shuffle(&mut rng);
     data.data[0..size].to_vec()
 }
-
-fn sync_weights(model: &model::Model) {
-    let weights = model.export_weights();
-    let temp = get_env("WEIGHTS") + ".tmp";
-    if File::open(&temp).is_ok() {
-        std::fs::remove_file(&temp).unwrap();
-    }
-    let mut temp_file = File::create(&temp).unwrap();
-    temp_file
-        .write_all(serde_json::to_string(&weights).unwrap().as_bytes())
-        .unwrap();
-    std::fs::rename(temp, get_env("WEIGHTS")).unwrap();
-}
-
 fn get_accuracy(model: &model::Model) -> f64 {
     let xdata = get_env("DATA") + "/xtest.csv";
     let ydata = get_env("DATA") + "/ytest.csv";
