@@ -7,7 +7,7 @@
 - [x] write model and site interaction
 - [x] decide whether to use bool or f64
 - [x] hook model and frontend together
-- [ ] hook api and frontend together
+- [x] hook api and frontend together
 - [ ] Dockerize everything
 - [ ] make ui pretty
 - [ ] Deploy
