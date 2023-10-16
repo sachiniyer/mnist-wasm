@@ -1,3 +1,4 @@
+use crate::app::api::get_sample;
 use yew::prelude::*;
 use yew::Properties;
 
@@ -68,6 +69,34 @@ pub fn grid(props: &GridProps) -> Html {
         Callback::from(move |_| grid_local_handler.set(props.init_grid.clone()))
     };
 
+    let load_sample = {
+        let grid_local_handler = grid_local_handler.clone();
+        let props = props.clone();
+        Callback::from(move |_| {
+            let grid_local_handler = grid_local_handler.clone();
+            let props = props.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let sample = get_sample().await;
+                let vec_image = sample
+                    .image
+                    .iter()
+                    .map(|&x| x > 0.0)
+                    .collect::<Vec<bool>>()
+                    .chunks(28)
+                    .map(|x| x.to_vec())
+                    .collect::<Vec<Vec<bool>>>();
+                let mut grid = [[false; 28]; 28];
+                for (i, row) in vec_image.iter().enumerate() {
+                    for (j, col) in row.iter().enumerate() {
+                        grid[i][j] = *col;
+                    }
+                }
+                props.grid.emit(grid);
+                grid_local_handler.set(grid)
+            });
+        })
+    };
+
     let mut grid_display = vec![];
     for row in 0..28 {
         let mut row_html = vec![];
@@ -104,6 +133,7 @@ pub fn grid(props: &GridProps) -> Html {
             { grid_display }
         </div>
         <button onclick={clear_grid}>{ "Clear Grid" }</button>
+        <button onclick={load_sample}>{ "Load Sample" }</button>
         </>
     }
 }

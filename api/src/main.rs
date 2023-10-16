@@ -8,52 +8,47 @@ use csv;
 use dotenv::dotenv;
 use model;
 use model::util;
-use model::util::Weights;
+use model::util::{Data, DataSingle, Weights};
 use rand;
 use rand::seq::SliceRandom;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs::File;
+use std::sync::{Arc, Mutex};
 use tower_http::cors::{Any, CorsLayer};
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct DataSingle {
-    target: u8,
-    image: Vec<f64>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Data {
-    data: Vec<DataSingle>,
-}
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
     check_envs();
+    let shared_data = Arc::new(Mutex::new(Data { data: Vec::new() }));
     let weights = get_env("WEIGHTS");
     let bind_url = get_env("BIND_URL");
 
     if File::open(weights).is_err() {
         output_filter(format!("Creating weights file"), 0);
-        let _ = weights_delete().await;
+        let _ = weights_delete(shared_data.clone()).await;
     }
-
+    let weights_delete_data = shared_data.clone();
+    let sample_data_data = shared_data.clone();
+    let cors = CorsLayer::new().allow_origin(Any);
     output_filter(format!("Listening on {}", bind_url), 0);
     axum::Server::bind(&bind_url.parse().unwrap())
-        .serve(app().into_make_service())
+        .serve(
+            Router::new()
+                .route("/", get(handler))
+                .route(
+                    "/weights",
+                    delete(move || weights_delete(weights_delete_data)),
+                )
+                .route("/weights", get(weights_get))
+                .route("/weights", post(weights_post))
+                .route("/weights", patch(weights_patch))
+                .route("/data", get(move || sample_data(sample_data_data)))
+                .layer(cors)
+                .into_make_service(),
+        )
         .await
         .unwrap();
-}
-fn app() -> Router {
-    let cors = CorsLayer::new().allow_origin(Any);
-    Router::new()
-        .route("/", get(handler))
-        .route("/weights", delete(weights_delete))
-        .route("/weights", get(weights_get))
-        .route("/weights", post(weights_post))
-        .route("/weights", patch(weights_patch))
-        .layer(cors)
 }
 
 async fn handler() -> &'static str {
@@ -62,12 +57,25 @@ async fn handler() -> &'static str {
 
 async fn weights_get() -> Json<Value> {
     let weights: Weights = get_weights();
-    Json(json!({ "weights": weights.weights }))
+    Json(json!(weights))
 }
 
 async fn weights_post(Json(weights): Json<Weights>) -> StatusCode {
     write_weights(&weights);
     StatusCode::OK
+}
+
+async fn sample_data(data: Arc<Mutex<Data>>) -> Json<Value> {
+    let mut data = data.lock().unwrap();
+    if data.data.len() == 0 {
+        let xdata = get_env("DATA") + "/xtrain.csv";
+        let ydata = get_env("DATA") + "/ytrain.csv";
+        *data = read_data(xdata, ydata);
+    }
+    let sample = Data {
+        data: get_sample_block(&data, 1),
+    };
+    Json(json!(sample)).into()
 }
 
 async fn weights_patch(Json(data): Json<Data>) -> Json<Value> {
@@ -95,13 +103,17 @@ async fn weights_patch(Json(data): Json<Data>) -> Json<Value> {
     }
 }
 
-async fn weights_delete() -> Html<&'static str> {
-    let xdata = get_env("DATA") + "/xtrain.csv";
-    let ydata = get_env("DATA") + "/ytrain.csv";
+async fn weights_delete(data: Arc<Mutex<Data>>) -> Html<&'static str> {
+    let mut data = data.lock().unwrap();
+    if data.data.len() == 0 {
+        let xdata = get_env("DATA") + "/xtrain.csv";
+        let ydata = get_env("DATA") + "/ytrain.csv";
+        *data = read_data(xdata, ydata);
+    }
+
     let lrate = get_env("LEARNING_RATE").parse::<f64>().unwrap();
     let batch_size = get_env("BATCH_SIZE").parse::<usize>().unwrap();
     let iters = get_env("TRAIN_ITER").parse::<usize>().unwrap();
-    let data = read_data(xdata, ydata);
 
     let mut model = model::Model::new(
         (util::random_dist(784, 128), util::random_dist(128, 10)),

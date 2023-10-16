@@ -40,3 +40,14 @@ pub fn approximate_equal(x: f64, y: f64, bound: Option<f64>) -> bool {
 pub struct Weights {
     pub weights: (Vec<Vec<f64>>, Vec<Vec<f64>>),
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DataSingle {
+    pub target: u8,
+    pub image: Vec<f64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Data {
+    pub data: Vec<DataSingle>,
+}

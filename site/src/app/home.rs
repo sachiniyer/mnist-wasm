@@ -123,25 +123,31 @@ pub fn home() -> Html {
 
     html! {
         <div>
-            <h1>{ "MNIST WASM" }</h1>
-            <p>{ "rust wasm neural net in your browser" }</p>
+            <div>
+                <h1 class="text-center text-xxl font-semibold">{ "MNIST WASM" }</h1>
+                <p class="text-center">{ "rust wasm neural net in your browser" }</p>
+            </div>
             <div>
                 <Grid grid={ mod_callback }
                       init_grid={ [[false; 28]; 28] }/>
             </div>
-            <button onclick={ show_grid_callback }>{ "Show Data" }</button>
-            <div> {
-                if *show_grid_handle { print_grid(*grid_component_handler) }
-                else { "".to_string() }
-            } </div>
-            <div>{ format!("Inference: {}", *inference_handler) }</div>
             <div>
-                <button onclick={ train_callback }>{ "Train Model" }</button>
-                <input onchange={ input_callback }type="number" id="target" name="target" min="0" max="9" />
-                <div>{ format!("Loss {}", *loss_handle) }</div>
+            <button onclick={ show_grid_callback }>{ "Show Data" }</button>
+                <div> {
+                    if *show_grid_handle { print_grid(*grid_component_handler) }
+                    else { "".to_string() }
+                } </div>
             </div>
             <div>
-                <button onclick={ weights_callback }>{ "Load weights from API" }</button>
+                <div>{ format!("Inference: {}", *inference_handler) }</div>
+                <div>
+                    <input onchange={ input_callback }type="number" id="target" name="target" min="0" max="9" />
+                    <button onclick={ train_callback }>{ "Train Model" }</button>
+                    <div>{ format!("Loss {}", *loss_handle) }</div>
+                </div>
+                <div>
+                    <button onclick={ weights_callback }>{ "Load weights from API" }</button>
+                </div>
             </div>
         </div>
     }
