@@ -1,5 +1,7 @@
+use crate::model::Model;
 use rand;
 use rand::distributions::uniform;
+use rand::seq::SliceRandom;
 use rand::Rng;
 use serde_derive::{Deserialize, Serialize};
 
@@ -50,4 +52,34 @@ pub struct DataSingle {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Data {
     pub data: Vec<DataSingle>,
+}
+
+pub fn get_sample_block(data: &Data, size: usize) -> Vec<DataSingle> {
+    let mut rng = rand::thread_rng();
+    let mut data = data.clone();
+    data.data.shuffle(&mut rng);
+    data.data[0..size].to_vec()
+}
+
+pub fn train_handler(data: &Data, model: &mut Model, batch_size: usize) -> (f64, f64) {
+    let chunk = get_sample_block(&data, batch_size);
+    let (images, targets): (Vec<Vec<f64>>, Vec<u8>) =
+        chunk
+            .into_iter()
+            .fold((Vec::new(), Vec::new()), |(mut images, mut targets), x| {
+                images.push(x.image.clone());
+                targets.push(x.target as u8);
+                (images, targets)
+            });
+    let accuracy = model
+        .infer2d(images.clone())
+        .into_iter()
+        .zip(targets.clone())
+        .filter(|(x, y)| x == y)
+        .count() as f64
+        / batch_size as f64;
+
+    let loss = model.train2d(images, targets);
+
+    (loss, accuracy)
 }

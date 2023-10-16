@@ -132,8 +132,8 @@ pub fn grid(props: &GridProps) -> Html {
             class="flex flex-col">
             { grid_display }
         </div>
-        <button onclick={clear_grid}>{ "Clear Grid" }</button>
-        <button onclick={load_sample}>{ "Load Sample" }</button>
+        <button class="grid-control" onclick={clear_grid}>{ "Clear Grid" }</button>
+        <button class="grid-control" onclick={load_sample}>{ "Load Sample" }</button>
         </>
     }
 }

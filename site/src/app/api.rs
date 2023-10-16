@@ -33,3 +33,22 @@ pub async fn get_sample() -> DataSingle {
     .unwrap();
     data.data.get(0).unwrap().clone()
 }
+
+pub async fn send_weights(weights: Weights) {
+    let client = Client::new();
+    client
+        .post(format!("{}/weights", API_URL))
+        .json(&weights)
+        .send()
+        .await
+        .unwrap();
+}
+
+pub async fn weights_delete() {
+    let client = Client::new();
+    client
+        .delete(format!("{}/weights", API_URL))
+        .send()
+        .await
+        .unwrap();
+}

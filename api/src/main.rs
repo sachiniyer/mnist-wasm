@@ -1,4 +1,5 @@
 use axum::{
+    http::Method,
     http::StatusCode,
     response::Html,
     routing::{delete, get, patch, post},
@@ -8,9 +9,7 @@ use csv;
 use dotenv::dotenv;
 use model;
 use model::util;
-use model::util::{Data, DataSingle, Weights};
-use rand;
-use rand::seq::SliceRandom;
+use model::util::{get_sample_block, train_handler, Data, DataSingle, Weights};
 use serde_json::{json, Value};
 use std::fs::File;
 use std::sync::{Arc, Mutex};
@@ -30,7 +29,9 @@ async fn main() {
     }
     let weights_delete_data = shared_data.clone();
     let sample_data_data = shared_data.clone();
-    let cors = CorsLayer::new().allow_origin(Any);
+    let cors = CorsLayer::new()
+        .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
+        .allow_origin(Any);
     output_filter(format!("Listening on {}", bind_url), 0);
     axum::Server::bind(&bind_url.parse().unwrap())
         .serve(
@@ -121,28 +122,11 @@ async fn weights_delete(data: Arc<Mutex<Data>>) -> Html<&'static str> {
     )
     .clone();
 
-    sync_weights(&model);
     output_filter(format!("Training for {} iterations", iters), 0);
+
     let mut iter = 0;
     while iter < iters {
-        let chunk = get_sample_block(&data, batch_size);
-        let (images, targets): (Vec<Vec<f64>>, Vec<u8>) =
-            chunk
-                .into_iter()
-                .fold((Vec::new(), Vec::new()), |(mut images, mut targets), x| {
-                    images.push(x.image.clone());
-                    targets.push(x.target as u8);
-                    (images, targets)
-                });
-        let accuracy = model
-            .infer2d(images.clone())
-            .into_iter()
-            .zip(targets.clone())
-            .filter(|(x, y)| x == y)
-            .count() as f64
-            / batch_size as f64;
-
-        let loss = model.train2d(images, targets);
+        let (loss, accuracy) = train_handler(&data, &mut model, batch_size);
         output_filter(
             format!(
                 "Iter {} -  Loss: {:.4} Accuracy {:.4}",
@@ -156,6 +140,7 @@ async fn weights_delete(data: Arc<Mutex<Data>>) -> Html<&'static str> {
         }
         iter += 1;
     }
+    sync_weights(&model);
     output_filter(format!("Final Accuracy: {}", get_accuracy(&model)), 0);
 
     Html("Done")
@@ -235,7 +220,7 @@ fn read_data(xdata: String, ydata: String) -> Data {
         let y = y.unwrap();
         let mut xdata_single = Vec::new();
         for i in 0..x.len() {
-            if x[i].parse::<f64>().unwrap() > 0.0 {
+            if x[i].parse::<f64>().unwrap() > 0.5 {
                 xdata_single.push(1.0);
             } else {
                 xdata_single.push(0.0);
@@ -253,12 +238,6 @@ fn read_data(xdata: String, ydata: String) -> Data {
     }
 }
 
-fn get_sample_block(data: &Data, size: usize) -> Vec<DataSingle> {
-    let mut rng = rand::thread_rng();
-    let mut data = data.clone();
-    data.data.shuffle(&mut rng);
-    data.data[0..size].to_vec()
-}
 fn get_accuracy(model: &model::Model) -> f64 {
     let xdata = get_env("DATA") + "/xtest.csv";
     let ydata = get_env("DATA") + "/ytest.csv";

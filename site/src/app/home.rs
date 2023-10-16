@@ -1,6 +1,7 @@
-use crate::app::api::get_weights;
+use crate::app::api::{get_weights, send_weights, weights_delete};
 use crate::app::Grid;
 use model::util;
+use model::util::Weights;
 use model::Model;
 use wasm_bindgen::JsCast;
 use web_sys::{EventTarget, HtmlInputElement};
@@ -19,7 +20,16 @@ pub fn home() -> Html {
             (0.0, 0.0),
         )
     });
-
+    let model_handle_effect = model_handle.clone();
+    use_effect(move || {
+        let model = model_handle_effect.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let weights = get_weights().await;
+            let new_model = Model::new(weights.weights, (0.0, 0.0));
+            model.set(new_model);
+        });
+        || {}
+    });
     let infer_callback = {
         let inference_handler = inference_handler.clone();
         let model = model_handle.clone();
@@ -105,7 +115,7 @@ pub fn home() -> Html {
         })
     };
 
-    let weights_callback = {
+    let load_weights_callback = {
         let model_handle = model_handle.clone();
         Callback::from(move |_| {
             let model_handle = model_handle.clone();
@@ -121,32 +131,78 @@ pub fn home() -> Html {
         })
     };
 
+    let send_weights_callback = {
+        let model_handle = model_handle.clone();
+        Callback::from(move |_| {
+            let model_handle = model_handle.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let model = (*model_handle).clone();
+                let weights = model.export_weights();
+                send_weights(Weights { weights }).await;
+                web_sys::window()
+                    .unwrap()
+                    .alert_with_message("Weights sent to API")
+                    .unwrap();
+            });
+        })
+    };
+
+    let delete_weights_callback = {
+        let model_handle = model_handle.clone();
+        Callback::from(move |_| {
+            let model_handle = model_handle.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                weights_delete().await;
+                let weights = get_weights().await;
+                let new_model = Model::new(weights.weights, (0.0, 0.0));
+                model_handle.set(new_model);
+                web_sys::window()
+                    .unwrap()
+                    .alert_with_message("Weights deleted from API")
+                    .unwrap();
+            });
+        })
+    };
+
     html! {
         <div>
             <div>
-                <h1 class="text-center text-xxl font-semibold">{ "MNIST WASM" }</h1>
-                <p class="text-center">{ "rust wasm neural net in your browser" }</p>
-            </div>
-            <div>
-                <Grid grid={ mod_callback }
-                      init_grid={ [[false; 28]; 28] }/>
-            </div>
-            <div>
-            <button onclick={ show_grid_callback }>{ "Show Data" }</button>
-                <div> {
-                    if *show_grid_handle { print_grid(*grid_component_handler) }
-                    else { "".to_string() }
-                } </div>
-            </div>
-            <div>
-                <div>{ format!("Inference: {}", *inference_handler) }</div>
-                <div>
-                    <input onchange={ input_callback }type="number" id="target" name="target" min="0" max="9" />
-                    <button onclick={ train_callback }>{ "Train Model" }</button>
-                    <div>{ format!("Loss {}", *loss_handle) }</div>
+                <h1>{ "MNIST WASM" }</h1>
+                <div id="info">
+                    <p>{ "rust wasm neural net in your browser" }</p>
+                    <a href="https://github.com/sachiniyer/mnist-wasm">{ "source" }</a>
                 </div>
-                <div>
-                    <button onclick={ weights_callback }>{ "Load weights from API" }</button>
+            </div>
+            <div id="wrapper">
+                <div id="left">
+                    <Grid grid={ mod_callback }
+                          init_grid={ [[false; 28]; 28] }/>
+                    <button class="grid-control" onclick={ show_grid_callback }>{ "Show Data" }</button>
+                    <div> {
+                        if *show_grid_handle { print_grid(*grid_component_handler) }
+                        else { "".to_string() }
+                    } </div>
+                </div>
+                <div id="right">
+                    <div id="weights">
+                        <div>
+                            <button onclick={ load_weights_callback }>{ "Reset weights with API" }</button>
+                        </div>
+                        <div>
+                            <button onclick={ send_weights_callback }>{ "Send weights to API" }</button>
+                        </div>
+                        <div>
+                            <button onclick={ delete_weights_callback }>{ "Delete weights in API" }</button>
+                        </div>
+                    </div>
+                    <div><p id="inference">{ format!("Inference: {}", *inference_handler) }</p></div>
+                    <div >
+                        <button id="tune" onclick={ train_callback }>{ "Tune Model" }</button>
+                        <div id="loss-div">
+                            <input onchange={ input_callback }type="number" id="target" name="target" min="0" max="9" />
+                            <p id="loss">{ format!("Loss: {}", *loss_handle) }</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
