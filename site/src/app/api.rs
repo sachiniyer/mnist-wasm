@@ -1,4 +1,4 @@
-use model::util::{Data, DataSingle, Weights};
+use model::util::{Data, DataInfo, DataSingle, Weights};
 use reqwest::Client;
 
 const API_URL: &str = "http://127.0.0.1:3000";
@@ -32,6 +32,23 @@ pub async fn get_sample() -> DataSingle {
     )
     .unwrap();
     data.data.get(0).unwrap().clone()
+}
+
+pub async fn get_block(block_size: usize) -> Data {
+    let client = Client::new();
+    let info = DataInfo { block: block_size };
+    serde_json::from_str(
+        &client
+            .post(format!("{}/datablock", API_URL))
+            .json(&info)
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap(),
+    )
+    .unwrap()
 }
 
 pub async fn send_weights(weights: Weights) {

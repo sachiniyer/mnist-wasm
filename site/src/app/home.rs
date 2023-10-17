@@ -1,11 +1,13 @@
-use crate::app::api::{get_weights, send_weights, weights_delete};
+use crate::app::api::{get_block, get_weights, send_weights, weights_delete};
 use crate::app::Grid;
 use model::util;
-use model::util::Weights;
+use model::util::{train_handler, Weights};
 use model::Model;
 use wasm_bindgen::JsCast;
 use web_sys::{EventTarget, HtmlInputElement};
 use yew::prelude::*;
+use yew::{function_component, html, use_effect_with, Html};
+use yew_hooks::prelude::*;
 
 #[function_component(Home)]
 pub fn home() -> Html {
@@ -14,6 +16,12 @@ pub fn home() -> Html {
     let show_grid_handle = use_state(|| false);
     let input_handle = use_state(|| 0);
     let loss_handle = use_state(|| 0.0);
+    let block_size_handle = use_state(|| 128);
+    let iter_handle = use_state(|| 0);
+    let train_loss_handle = use_state(|| 0.0);
+    let learning_rate_handle = use_state(|| 0.035);
+    let accuracy_handle = use_state(|| 0.0);
+    let local_train_toggle = use_state(|| false);
     let model_handle = use_state(|| {
         Model::new(
             (util::random_dist(784, 128), util::random_dist(128, 10)),
@@ -21,13 +29,52 @@ pub fn home() -> Html {
         )
     });
     let model_handle_effect = model_handle.clone();
-    use_effect(move || {
+    use_effect_once(move || {
         let model = model_handle_effect.clone();
         wasm_bindgen_futures::spawn_local(async move {
             let weights = get_weights().await;
             let new_model = Model::new(weights.weights, (0.0, 0.0));
             model.set(new_model);
         });
+        || {}
+    });
+
+    let model_handle_effect = model_handle.clone();
+    let block_size_handle_effect = block_size_handle.clone();
+    let iter_handle_effect = iter_handle.clone();
+    let train_loss_handle_effect = train_loss_handle.clone();
+    let accuracy_handle_effect = accuracy_handle.clone();
+    let local_train_toggle_effect = local_train_toggle.clone();
+    use_effect_with(local_train_toggle.clone(), move |_| {
+        let model_handle = model_handle_effect.clone();
+        let block_size_handle = block_size_handle_effect.clone();
+        let iter_handle = iter_handle_effect.clone();
+        let train_loss_handle = train_loss_handle_effect.clone();
+        let accuracy_handle = accuracy_handle_effect.clone();
+        let local_train_toggle = local_train_toggle_effect.clone();
+
+        if *local_train_toggle {
+            wasm_bindgen_futures::spawn_local(async move {
+                let model_handle = model_handle.clone();
+                let block_size_handle = block_size_handle.clone();
+                let iter_handle = iter_handle.clone();
+                let train_loss_handle = train_loss_handle.clone();
+                let accuracy_handle = accuracy_handle.clone();
+                let local_train_toggle = local_train_toggle.clone();
+
+                while *local_train_toggle {
+                    web_sys::console::log_1(&format!("LOCAL TRAIN {}", *iter_handle).into());
+                    let mut model = (*model_handle).clone();
+                    let block = get_block(*block_size_handle).await;
+                    let (loss, accuracy) =
+                        train_handler(&block.data, &mut model, *block_size_handle);
+                    model_handle.set(model);
+                    iter_handle.set(*iter_handle + 1);
+                    train_loss_handle.set(loss);
+                    accuracy_handle.set(accuracy);
+                }
+            });
+        }
         || {}
     });
     let infer_callback = {
@@ -80,7 +127,7 @@ pub fn home() -> Html {
             .join("\n")
     }
 
-    let train_callback = {
+    let tune_callback = {
         let input_handle = input_handle.clone();
         let grid_component_handler = grid_component_handler.clone();
         let loss_handle = loss_handle.clone();
@@ -164,6 +211,57 @@ pub fn home() -> Html {
         })
     };
 
+    let block_size_callback = {
+        let block_size_handle = block_size_handle.clone();
+        Callback::from(move |e: Event| {
+            let target: Option<EventTarget> = e.target();
+            let input = target.and_then(|t| t.dyn_into::<HtmlInputElement>().ok());
+            if let Some(input) = input {
+                block_size_handle.set(input.value().parse::<usize>().unwrap());
+            }
+        })
+    };
+
+    let learning_rate_callback = {
+        let learning_rate_handle = learning_rate_handle.clone();
+        Callback::from(move |e: Event| {
+            let target: Option<EventTarget> = e.target();
+            let input = target.and_then(|t| t.dyn_into::<HtmlInputElement>().ok());
+            if let Some(input) = input {
+                learning_rate_handle.set(input.value().parse::<f64>().unwrap());
+            }
+        })
+    };
+
+    let start_train_callback = {
+        let model_handle = model_handle.clone();
+        let local_train_toggle = local_train_toggle.clone();
+        Callback::from(move |_| {
+            let model_handle = model_handle.clone();
+            model_handle.set(Model::new(
+                (util::random_dist(784, 128), util::random_dist(128, 10)),
+                (*learning_rate_handle, *learning_rate_handle),
+            ));
+            let local_train_toggle = local_train_toggle.clone();
+            local_train_toggle.set(true);
+            web_sys::window()
+                .unwrap()
+                .alert_with_message("Training started")
+                .unwrap();
+        })
+    };
+
+    let stop_train_callback = {
+        let local_train_toggle = local_train_toggle.clone();
+        Callback::from(move |_| {
+            local_train_toggle.set(false);
+            web_sys::window()
+                .unwrap()
+                .alert_with_message("Training stopped")
+                .unwrap();
+        })
+    };
+
     html! {
         <div>
             <div>
@@ -197,10 +295,24 @@ pub fn home() -> Html {
                     </div>
                     <div><p id="inference">{ format!("Inference: {}", *inference_handler) }</p></div>
                     <div >
-                        <button id="tune" onclick={ train_callback }>{ "Tune Model" }</button>
+                        <button id="tune" onclick={ tune_callback }>{ "Tune Model" }</button>
                         <div id="loss-div">
-                            <input onchange={ input_callback }type="number" id="target" name="target" min="0" max="9" />
+                            <input onchange={ input_callback } type="number" id="target" name="target" min="0" max="9" value="0" />
                             <p id="loss">{ format!("Loss: {}", *loss_handle) }</p>
+                        </div>
+                    </div>
+                    <div>
+                        <div>
+                            <button onclick={ start_train_callback }>{ "Start Local Train" }</button>
+                            <input onchange={ block_size_callback }type="number" id="target" name="target" min="1" max="512" value="128" />
+                            <input onchange={ learning_rate_callback }type="number" id="target" name="target" min="0.0" max="1.0" step="0.001" value="0.035" />
+                            <button onclick={ stop_train_callback }>{ "Stop Local Train" }</button>
+                        </div>
+                        <div>
+                            <p id="iter">{ format!("Iteration: {}", *iter_handle) }</p>
+                            <p id="trainloss">{ format!("Loss: {}", *train_loss_handle) }</p>
+                            <p id="acc">{ format!("Accuracy: {}", *accuracy_handle) }</p>
+                            <p id="training"> { format!("Training: {}", *local_train_toggle) }</p>
                         </div>
                     </div>
                 </div>

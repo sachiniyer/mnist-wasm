@@ -1,4 +1,5 @@
 use axum::{
+    http::header::{CONTENT_TYPE, USER_AGENT},
     http::Method,
     http::StatusCode,
     response::Html,
@@ -9,7 +10,7 @@ use csv;
 use dotenv::dotenv;
 use model;
 use model::util;
-use model::util::{get_sample_block, train_handler, Data, DataSingle, Weights};
+use model::util::{get_sample_block, train_handler_wrapper, Data, DataInfo, DataSingle, Weights};
 use serde_json::{json, Value};
 use std::fs::File;
 use std::sync::{Arc, Mutex};
@@ -29,8 +30,10 @@ async fn main() {
     }
     let weights_delete_data = shared_data.clone();
     let sample_data_data = shared_data.clone();
+    let sample_block_data = shared_data.clone();
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
+        .allow_headers([USER_AGENT, CONTENT_TYPE])
         .allow_origin(Any);
     output_filter(format!("Listening on {}", bind_url), 0);
     axum::Server::bind(&bind_url.parse().unwrap())
@@ -45,6 +48,10 @@ async fn main() {
                 .route("/weights", post(weights_post))
                 .route("/weights", patch(weights_patch))
                 .route("/data", get(move || sample_data(sample_data_data)))
+                .route(
+                    "/datablock",
+                    post(move |args| sample_data_block(args, sample_block_data)),
+                )
                 .layer(cors)
                 .into_make_service(),
         )
@@ -67,14 +74,19 @@ async fn weights_post(Json(weights): Json<Weights>) -> StatusCode {
 }
 
 async fn sample_data(data: Arc<Mutex<Data>>) -> Json<Value> {
-    let mut data = data.lock().unwrap();
-    if data.data.len() == 0 {
-        let xdata = get_env("DATA") + "/xtrain.csv";
-        let ydata = get_env("DATA") + "/ytrain.csv";
-        *data = read_data(xdata, ydata);
-    }
+    data_refresh(data.clone());
+    let data = data.lock().unwrap();
     let sample = Data {
         data: get_sample_block(&data, 1),
+    };
+    Json(json!(sample)).into()
+}
+
+async fn sample_data_block(Json(args): Json<DataInfo>, data: Arc<Mutex<Data>>) -> Json<Value> {
+    data_refresh(data.clone());
+    let data = data.lock().unwrap();
+    let sample = Data {
+        data: get_sample_block(&data, args.block),
     };
     Json(json!(sample)).into()
 }
@@ -105,12 +117,7 @@ async fn weights_patch(Json(data): Json<Data>) -> Json<Value> {
 }
 
 async fn weights_delete(data: Arc<Mutex<Data>>) -> Html<&'static str> {
-    let mut data = data.lock().unwrap();
-    if data.data.len() == 0 {
-        let xdata = get_env("DATA") + "/xtrain.csv";
-        let ydata = get_env("DATA") + "/ytrain.csv";
-        *data = read_data(xdata, ydata);
-    }
+    data_refresh(data.clone());
 
     let lrate = get_env("LEARNING_RATE").parse::<f64>().unwrap();
     let batch_size = get_env("BATCH_SIZE").parse::<usize>().unwrap();
@@ -126,7 +133,8 @@ async fn weights_delete(data: Arc<Mutex<Data>>) -> Html<&'static str> {
 
     let mut iter = 0;
     while iter < iters {
-        let (loss, accuracy) = train_handler(&data, &mut model, batch_size);
+        let data = data.lock().unwrap();
+        let (loss, accuracy) = train_handler_wrapper(&data, &mut model, batch_size);
         output_filter(
             format!(
                 "Iter {} -  Loss: {:.4} Accuracy {:.4}",
@@ -210,6 +218,18 @@ fn sync_weights(model: &model::Model) {
     write_weights(&weights);
 }
 
+fn data_refresh(data: Arc<Mutex<Data>>) {
+    let mut data = data.lock().unwrap();
+    if data.data.len() != 0 {
+        return;
+    }
+    output_filter(format!("Loading training data"), 1);
+    *data = read_data(
+        format!("{}/xtrain.csv", get_env("DATA")),
+        format!("{}/ytrain.csv", get_env("DATA")),
+    );
+}
+
 fn read_data(xdata: String, ydata: String) -> Data {
     let mut xreader = csv::Reader::from_path(xdata).unwrap();
     let mut yreader = csv::Reader::from_path(ydata).unwrap();
@@ -220,7 +240,7 @@ fn read_data(xdata: String, ydata: String) -> Data {
         let y = y.unwrap();
         let mut xdata_single = Vec::new();
         for i in 0..x.len() {
-            if x[i].parse::<f64>().unwrap() > 0.5 {
+            if x[i].parse::<f64>().unwrap() > 0.0 {
                 xdata_single.push(1.0);
             } else {
                 xdata_single.push(0.0);

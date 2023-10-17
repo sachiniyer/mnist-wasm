@@ -54,6 +54,11 @@ pub struct Data {
     pub data: Vec<DataSingle>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DataInfo {
+    pub block: usize,
+}
+
 pub fn get_sample_block(data: &Data, size: usize) -> Vec<DataSingle> {
     let mut rng = rand::thread_rng();
     let mut data = data.clone();
@@ -61,8 +66,12 @@ pub fn get_sample_block(data: &Data, size: usize) -> Vec<DataSingle> {
     data.data[0..size].to_vec()
 }
 
-pub fn train_handler(data: &Data, model: &mut Model, batch_size: usize) -> (f64, f64) {
+pub fn train_handler_wrapper(data: &Data, model: &mut Model, batch_size: usize) -> (f64, f64) {
     let chunk = get_sample_block(&data, batch_size);
+    train_handler(&chunk, model, batch_size)
+}
+
+pub fn train_handler(chunk: &Vec<DataSingle>, model: &mut Model, batch_size: usize) -> (f64, f64) {
     let (images, targets): (Vec<Vec<f64>>, Vec<u8>) =
         chunk
             .into_iter()
