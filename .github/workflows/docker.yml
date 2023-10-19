@@ -1,9 +1,9 @@
-name: Build and Push Docker Images
+name: docke
 
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   build:
