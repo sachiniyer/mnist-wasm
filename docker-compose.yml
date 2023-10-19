@@ -1,0 +1,23 @@
+version: "3.8"
+services:
+  api:
+    build:
+      context: .
+      target: api
+    ports:
+      - "8000:8000"
+    environment:
+      - WEIGHTS=/home/api/pretrained.txt
+      - BIND_URL=127.0.0.1:8000
+      - DATA=/home/api/data
+      - LEARNING_RATE=0.01
+      - BATCH_SIZE=128
+      - TRAIN_ITER=3000
+      - TEST_ITER=500
+      - OUTPUT_LEVEL=2
+  site:
+    build:
+      context: .
+      target: site
+    ports:
+      - "3000:3000"

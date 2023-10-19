@@ -13,7 +13,8 @@ pub struct GridCellProps {
 
 #[function_component(GridCell)]
 pub fn grid_cell(props: &GridCellProps) -> Html {
-    let change = {
+    
+    let changemouse = {
         if !props.mouse_down {
             Callback::noop()
         } else {
@@ -33,7 +34,7 @@ pub fn grid_cell(props: &GridCellProps) -> Html {
     html! {
         <div style={ color(props.val) }
             class="w-4 h-4 border border-gray-400"
-            onmouseover={ change }
+            onmouseover={ changemouse }
         >
         </div>
     }

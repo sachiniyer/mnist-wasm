@@ -1,5 +1,5 @@
 [package]
-authors = ["Sachin Iyer <sachinjiyer@gmail.com>"]
+authors = ["Sachin Iyer <sachin@sachiniyer.com>"]
 categories = ["wasm"]
 description = "API for mnist-wasm"
 edition = "2021"

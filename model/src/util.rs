@@ -4,6 +4,7 @@ use rand::distributions::uniform;
 use rand::seq::SliceRandom;
 use rand::Rng;
 use serde_derive::{Deserialize, Serialize};
+use std::hash::{Hash, Hasher};
 
 pub fn random_dist(m: u32, h: u32) -> Vec<Vec<f64>> {
     let mut weights = Vec::new();
@@ -49,7 +50,24 @@ pub struct DataSingle {
     pub image: Vec<f64>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+impl Hash for DataSingle {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.target.hash(state);
+        for i in self.image.iter() {
+            i.to_bits().hash(state);
+        }
+    }
+}
+
+impl PartialEq for DataSingle {
+    fn eq(&self, other: &Self) -> bool {
+        self.target == other.target && self.image == other.image
+    }
+}
+
+impl Eq for DataSingle {}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Data {
     pub data: Vec<DataSingle>,
 }
