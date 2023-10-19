@@ -4,6 +4,7 @@ services:
     build:
       context: .
       target: api
+    image: sachiyer/mnist-wasm-api
     ports:
       - "8000:8000"
     environment:
@@ -19,5 +20,6 @@ services:
     build:
       context: .
       target: site
+    image: sachiyer/mnist-wasm-site
     ports:
       - "3000:3000"
