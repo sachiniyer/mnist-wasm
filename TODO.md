@@ -9,6 +9,6 @@
 - [x] hook model and frontend together
 - [x] hook api and frontend together
 - [x] make ui pretty
-- [ ] figure out training in browser - use web workers? parallelize downloading?
 - [x] Dockerize everything
+- [ ] use web workers and optimize training/downloading
 - [ ] Deploy
