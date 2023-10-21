@@ -11,6 +11,7 @@ FROM debian:latest as api
 WORKDIR /home/api
 COPY --from=api-builder /usr/src/app/target/release/api .
 COPY --from=api-builder /usr/src/app/pretrained.txt .
+# COPY ./data ./data
 CMD ["./api"]
 
 FROM rust:latest as site-builder

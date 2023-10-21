@@ -1,4 +1,4 @@
-use crate::app::api::get_sample;
+use crate::api::get_sample;
 use yew::prelude::*;
 use yew::Properties;
 
@@ -13,7 +13,6 @@ pub struct GridCellProps {
 
 #[function_component(GridCell)]
 pub fn grid_cell(props: &GridCellProps) -> Html {
-    
     let changemouse = {
         if !props.mouse_down {
             Callback::noop()

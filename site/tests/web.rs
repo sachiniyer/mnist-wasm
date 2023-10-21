@@ -4,7 +4,7 @@ use yew::platform::time::sleep;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
-use site::app::App;
+use site::App;
 
 #[wasm_bindgen_test]
 async fn app_has_a_home_page() {
