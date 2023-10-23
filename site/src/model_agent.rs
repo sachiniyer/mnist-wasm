@@ -1,27 +1,36 @@
-use futures::sink::SinkExt;
-use futures::StreamExt;
+use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use yew_agent::oneshot::use_oneshot_runner;
 use yew_agent::prelude::*;
 
-use crate::data_agent::DataTask;
-use model::util::random_dist;
-use model::util::Weights;
+use model::util::{random_dist, train_handler_wrapper, Data, Weights};
 use model::Model;
+
+use std::collections::VecDeque;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ControlSignal {
     Start,
     Stop,
     GetWeights,
-    SetWeights { weights: Weights },
-    SetBatchSize { batch_size: usize },
-    SetLearningRate { learning_rate: i64 },
+    SetWeights(Weights),
+    SetBatchSize(usize),
+    SetLearningRate(i64),
+    AddData(Data),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResponseSignal {
+    weights: Weights,
+    loss: f64,
+    acc: f64,
+    batch_size: usize,
+    lrate: i64,
+    data_len: usize,
 }
 
 #[reactor]
-pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, Weights>) {
-    let data_task = use_oneshot_runner::<DataTask>();
+pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>) {
+    let mut data_vec = VecDeque::new();
     let mut training = false;
     let mut batch_size = 128;
     let lrate = 0.01;
@@ -37,24 +46,46 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, Weights>) {
             ControlSignal::Stop => {
                 training = false;
             }
-            ControlSignal::GetWeights => {
+            ControlSignal::GetWeights => {}
+            ControlSignal::SetWeights(w) => {
+                model = Model::new(w.weights, (lrate, lrate));
+            }
+            ControlSignal::SetBatchSize(b) => {
+                batch_size = b;
+            }
+            ControlSignal::SetLearningRate(l) => {
+                let l = l as f64;
+                model = Model::new(model.export_weights(), (l, l));
+            }
+            ControlSignal::AddData(d) => {
+                data_vec.push_front(d);
+            }
+        };
+        if training {
+            if !data_vec.is_empty() {
+                let mut loss = 0.0;
+                let mut acc = 0.0;
+                if data_vec.front().unwrap().data.len() == batch_size {
+                    (loss, acc) = train_handler_wrapper(
+                        &data_vec.pop_front().unwrap(),
+                        &mut model,
+                        batch_size,
+                    );
+                }
                 scope
-                    .send(Weights {
-                        weights: model.export_weights(),
+                    .send(ResponseSignal {
+                        weights: Weights {
+                            weights: model.export_weights(),
+                        },
+                        loss,
+                        acc,
+                        batch_size,
+                        lrate: lrate as i64,
+                        data_len: data_vec.len(),
                     })
                     .await
                     .unwrap();
             }
-            ControlSignal::SetWeights { weights: w } => {
-                model = Model::new(w.weights, (lrate, lrate));
-            }
-            ControlSignal::SetBatchSize { batch_size: b } => {
-                batch_size = b;
-            }
-            ControlSignal::SetLearningRate { learning_rate: l } => {
-                let l = l as f64;
-                model = Model::new(model.export_weights(), (l, l));
-            }
-        }
+        };
     }
 }
