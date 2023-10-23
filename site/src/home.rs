@@ -1,7 +1,7 @@
 use crate::api::{get_weights, send_weights, weights_delete};
 use crate::Grid;
 use model::util;
-use model::util::{train_handler, Data, Weights};
+use model::util::Weights;
 use model::Model;
 use std::sync::{Arc, Mutex};
 use wasm_bindgen::JsCast;
@@ -29,21 +29,6 @@ pub fn home() -> Html {
             (*learning_rate_handle, *learning_rate_handle),
         )
     });
-
-    let model_handle_effect = model_handle.clone();
-    let learning_rate_handle_effect = learning_rate_handle.clone();
-    // use_effect_once(move || {
-    //     let model = model_handle_effect.clone();
-    //     wasm_bindgen_futures::spawn_local(async move {
-    //         let weights = get_weights().await;
-    //         let new_model = Model::new(
-    //             weights.weights,
-    //             (*learning_rate_handle_effect, *learning_rate_handle_effect),
-    //         );
-    //         model.set(new_model);
-    //     });
-    //     || {}
-    // });
 
     let infer_callback = {
         let inference_handler = inference_handler.clone();

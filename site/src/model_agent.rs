@@ -11,7 +11,7 @@ use std::collections::VecDeque;
 pub enum ControlSignal {
     Start,
     Stop,
-    GetWeights,
+    GetStatus,
     SetWeights(Weights),
     SetBatchSize(usize),
     SetLearningRate(i64),
@@ -30,10 +30,35 @@ pub struct ResponseSignal {
 
 #[reactor]
 pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>) {
+    async fn respond(
+        scope: &mut ReactorScope<ControlSignal, ResponseSignal>,
+        weights: (Vec<Vec<f64>>, Vec<Vec<f64>>),
+        loss: f64,
+        acc: f64,
+        batch_size: usize,
+        lrate: f64,
+        data: &VecDeque<Data>,
+    ) {
+        scope
+            .send(ResponseSignal {
+                weights: Weights { weights },
+                loss,
+                acc,
+                batch_size,
+                lrate: lrate as i64,
+                data_len: data.len(),
+            })
+            .await
+            .unwrap();
+    }
+
     let mut data_vec = VecDeque::new();
     let mut training = false;
     let mut batch_size = 128;
     let lrate = 0.01;
+    let mut loss = 0.0;
+    let mut acc = 0.0;
+
     let mut model = Model::new(
         (random_dist(784, 128), random_dist(128, 10)),
         (lrate, lrate),
@@ -46,7 +71,18 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
             ControlSignal::Stop => {
                 training = false;
             }
-            ControlSignal::GetWeights => {}
+            ControlSignal::GetStatus => {
+                respond(
+                    &mut scope,
+                    model.export_weights(),
+                    loss,
+                    acc,
+                    batch_size,
+                    lrate,
+                    &data_vec,
+                )
+                .await
+            }
             ControlSignal::SetWeights(w) => {
                 model = Model::new(w.weights, (lrate, lrate));
             }
@@ -63,8 +99,6 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
         };
         if training {
             if !data_vec.is_empty() {
-                let mut loss = 0.0;
-                let mut acc = 0.0;
                 if data_vec.front().unwrap().data.len() == batch_size {
                     (loss, acc) = train_handler_wrapper(
                         &data_vec.pop_front().unwrap(),
@@ -72,19 +106,16 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
                         batch_size,
                     );
                 }
-                scope
-                    .send(ResponseSignal {
-                        weights: Weights {
-                            weights: model.export_weights(),
-                        },
-                        loss,
-                        acc,
-                        batch_size,
-                        lrate: lrate as i64,
-                        data_len: data_vec.len(),
-                    })
-                    .await
-                    .unwrap();
+                respond(
+                    &mut scope,
+                    model.export_weights(),
+                    loss,
+                    acc,
+                    batch_size,
+                    lrate,
+                    &data_vec,
+                )
+                .await;
             }
         };
     }

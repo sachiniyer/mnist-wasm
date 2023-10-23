@@ -8,7 +8,7 @@ use grid::Grid;
 use home::Home;
 
 pub mod model_agent;
-use model_agent::{ControlSignal, ModelReactor};
+use model_agent::ModelReactor;
 pub mod data_agent;
 use data_agent::{DataTask, Postcard};
 
