@@ -44,6 +44,14 @@ pub struct Weights {
     pub weights: (Vec<Vec<f64>>, Vec<Vec<f64>>),
 }
 
+impl PartialEq for Weights {
+    fn eq(&self, other: &Self) -> bool {
+        self.weights == other.weights
+    }
+}
+
+impl Eq for Weights {}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DataSingle {
     pub target: u8,
