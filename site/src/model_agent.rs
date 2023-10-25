@@ -73,7 +73,6 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
     );
 
     loop {
-        let m;
         if data_vec.lock().unwrap().len() != batch_size {
             data_vec.lock().unwrap().clear();
         }
@@ -99,51 +98,48 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
             .await;
         }
         futures::select! {
-            n = scope.next() => {
-                if let Some(n) = n {
-                    m = n;
+            c = scope.next() => {
+                if let Some(c) = c {
+                    match c {
+                        ControlSignal::Start => {
+                            iteration = 0;
+                            training = true;
+                        }
+                        ControlSignal::Stop => {
+                            training = false;
+                        }
+                        ControlSignal::GetStatus => {
+                            respond(
+                                &mut scope,
+                                model.export_weights(),
+                                loss,
+                                acc,
+                                batch_size,
+                                lrate,
+                                iteration,
+                                &data_vec.clone().lock().unwrap(),
+                            ).await
+                        }
+                        ControlSignal::SetWeights(w) => {
+                            model = Model::new(w.weights, (lrate, lrate));
+                        }
+                        ControlSignal::SetBatchSize(b) => {
+                            batch_size = b;
+                        }
+                        ControlSignal::SetLearningRate(l) => {
+                            let l = l as f64;
+                            model = Model::new(model.export_weights(), (l, l));
+                        }
+                        ControlSignal::AddData(d) => {
+                            data_vec.lock().unwrap().push_back(d);
+                        }
+                    };
                 } else {
                     continue;
                 }
             }
             _ = sleep(Duration::from_millis(10)).fuse() => {
                 continue;
-            }
-        }
-
-        match m {
-            ControlSignal::Start => {
-                iteration = 0;
-                training = true;
-            }
-            ControlSignal::Stop => {
-                training = false;
-            }
-            ControlSignal::GetStatus => {
-                respond(
-                    &mut scope,
-                    model.export_weights(),
-                    loss,
-                    acc,
-                    batch_size,
-                    lrate,
-                    iteration,
-                    &data_vec.clone().lock().unwrap(),
-                )
-                .await
-            }
-            ControlSignal::SetWeights(w) => {
-                model = Model::new(w.weights, (lrate, lrate));
-            }
-            ControlSignal::SetBatchSize(b) => {
-                batch_size = b;
-            }
-            ControlSignal::SetLearningRate(l) => {
-                let l = l as f64;
-                model = Model::new(model.export_weights(), (l, l));
-            }
-            ControlSignal::AddData(d) => {
-                data_vec.lock().unwrap().push_back(d);
             }
         };
     }
