@@ -11,6 +11,7 @@ use std::{
 };
 use yew::platform::time::sleep;
 use yew_agent::prelude::*;
+
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ControlSignal {
     Start,
@@ -77,12 +78,14 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
             data_vec.lock().unwrap().clear();
         }
         if training {
-            (loss, acc) = train_handler_wrapper(
-                &data_vec.lock().unwrap().pop_front().unwrap(),
-                &mut model,
-                batch_size,
-            );
-            iteration += 1;
+            if !data_vec.lock().unwrap().is_empty() {
+                (loss, acc) = train_handler_wrapper(
+                    &data_vec.lock().unwrap().pop_front().unwrap(),
+                    &mut model,
+                    batch_size,
+                );
+                iteration += 1;
+            }
             respond(
                 &mut scope,
                 model.export_weights(),
@@ -94,20 +97,18 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
                 &data_vec.clone().lock().unwrap(),
             )
             .await;
-            futures::select! {
-                n = scope.next() => {
-                    if let Some(n) = n {
-                        m = n;
-                    } else {
-                        continue;
-                    }
-                }
-                _ = sleep(Duration::from_millis(10)).fuse() => {
+        }
+        futures::select! {
+            n = scope.next() => {
+                if let Some(n) = n {
+                    m = n;
+                } else {
                     continue;
                 }
             }
-        } else {
-            m = scope.next().await.unwrap();
+            _ = sleep(Duration::from_millis(10)).fuse() => {
+                continue;
+            }
         }
 
         match m {
