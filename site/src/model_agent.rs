@@ -71,32 +71,14 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
         (random_dist(784, 128), random_dist(128, 10)),
         (lrate, lrate),
     );
-
-    respond(
-        &mut scope,
-        model.export_weights(),
-        loss,
-        acc,
-        batch_size,
-        lrate,
-        iteration,
-        &data_vec.clone().lock().unwrap(),
-    )
-    .await;
+    let mut send_status = true;
 
     loop {
         if data_vec.lock().unwrap().len() != batch_size {
             data_vec.lock().unwrap().clear();
         }
-        if training {
-            if !data_vec.lock().unwrap().is_empty() {
-                (loss, acc) = train_handler_wrapper(
-                    &data_vec.lock().unwrap().pop_front().unwrap(),
-                    &mut model,
-                    batch_size,
-                );
-                iteration += 1;
-            }
+
+        if send_status {
             respond(
                 &mut scope,
                 model.export_weights(),
@@ -108,6 +90,19 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
                 &data_vec.clone().lock().unwrap(),
             )
             .await;
+            send_status = false;
+        }
+
+        if training {
+            if !data_vec.lock().unwrap().is_empty() {
+                (loss, acc) = train_handler_wrapper(
+                    &data_vec.lock().unwrap().pop_front().unwrap(),
+                    &mut model,
+                    batch_size,
+                );
+                iteration += 1;
+            }
+            send_status = true;
         }
         futures::select! {
             c = scope.next() => {
@@ -121,16 +116,7 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
                             training = false;
                         }
                         ControlSignal::GetStatus => {
-                            respond(
-                                &mut scope,
-                                model.export_weights(),
-                                loss,
-                                acc,
-                                batch_size,
-                                lrate,
-                                iteration,
-                                &data_vec.clone().lock().unwrap(),
-                            ).await
+                            send_status = true;
                         }
                         ControlSignal::SetWeights(w) => {
                             model = Model::new(w.weights, (lrate, lrate));
