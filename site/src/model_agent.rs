@@ -72,6 +72,18 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
         (lrate, lrate),
     );
 
+    respond(
+        &mut scope,
+        model.export_weights(),
+        loss,
+        acc,
+        batch_size,
+        lrate,
+        iteration,
+        &data_vec.clone().lock().unwrap(),
+    )
+    .await;
+
     loop {
         if data_vec.lock().unwrap().len() != batch_size {
             data_vec.lock().unwrap().clear();
