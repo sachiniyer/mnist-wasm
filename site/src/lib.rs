@@ -16,8 +16,8 @@ use data_agent::{DataTask, Postcard};
 pub fn App() -> Html {
     wasm_logger::init(wasm_logger::Config::default());
     html! {
-        <OneshotProvider<DataTask, Postcard> path="/data_worker.js">
-            <ReactorProvider<ModelReactor> path="/model_worker.js">
+        <OneshotProvider<DataTask, Postcard> path="/worker_data.js">
+            <ReactorProvider<ModelReactor> path="/worker_model.js">
                 <Home />
             </ReactorProvider<ModelReactor>>
         </OneshotProvider<DataTask, Postcard>>

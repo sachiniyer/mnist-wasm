@@ -7,18 +7,18 @@
     <title>MNIST WASM</title>
 
     <link rel="shortcut icon" href="favicon.ico">
-    <!-- <link data-trunk rel="rust" /> -->
     <link data-trunk rel="copy-file" href="public/favicon.ico" />
     <link data-trunk rel="tailwind-css" href="tailwind.css" />
 
-    <link data-trunk rel="rust" href="Cargo.toml" data-bin="app" data-type="main" data-weak-refs />
-    <link data-trunk rel="rust" href="Cargo.toml" data-bin="worker_model" data-type="worker" data-weak-refs />
-    <link data-trunk rel="rust" href="Cargo.toml" data-bin="worker_data" data-type="worker" data-weak-refs />
 
     <base data-trunk-public-url />
 </head>
 
 <body class="min-h-screen">
+    <link data-trunk rel="rust" href="Cargo.toml" data-bin="app" data-type="main" data-weak-refs />
+    <link data-trunk rel="rust" href="Cargo.toml" data-bin="worker_model" data-type="worker" data-weak-refs />
+    <link data-trunk rel="rust" href="Cargo.toml" data-bin="worker_data" data-type="worker" data-weak-refs />
+
 </body>
 
 </html>
