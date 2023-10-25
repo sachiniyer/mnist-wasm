@@ -1,15 +1,16 @@
-use std::time::Duration;
-
 use futures::{FutureExt, SinkExt, StreamExt};
+use model::{
+    util::{random_dist, train_handler_wrapper, Data, Weights},
+    Model,
+};
 use serde::{Deserialize, Serialize};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use yew::platform::time::sleep;
 use yew_agent::prelude::*;
-
-use model::util::{random_dist, train_handler_wrapper, Data, Weights};
-use model::Model;
-
-use std::collections::VecDeque;
-
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ControlSignal {
     Start,
@@ -23,12 +24,13 @@ pub enum ControlSignal {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponseSignal {
-    weights: Weights,
-    loss: f64,
-    acc: f64,
-    batch_size: usize,
-    lrate: i64,
-    data_len: usize,
+    pub weights: Weights,
+    pub loss: f64,
+    pub acc: f64,
+    pub batch_size: usize,
+    pub lrate: i64,
+    pub data_len: usize,
+    pub iteration: usize,
 }
 
 #[reactor]
@@ -40,6 +42,7 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
         acc: f64,
         batch_size: usize,
         lrate: f64,
+        iteration: usize,
         data: &VecDeque<Data>,
     ) {
         scope
@@ -50,17 +53,19 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
                 batch_size,
                 lrate: lrate as i64,
                 data_len: data.len(),
+                iteration,
             })
             .await
             .unwrap();
     }
 
-    let mut data_vec: VecDeque<Data> = VecDeque::new();
+    let data_vec: Arc<Mutex<VecDeque<Data>>> = Arc::new(Mutex::new(VecDeque::new()));
     let mut training = false;
-    let mut batch_size = 128;
+    let mut batch_size: usize = 128;
     let lrate = 0.01;
     let mut loss = 0.0;
     let mut acc = 0.0;
+    let mut iteration = 0;
     let mut model = Model::new(
         (random_dist(784, 128), random_dist(128, 10)),
         (lrate, lrate),
@@ -68,26 +73,27 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
 
     loop {
         let m;
+        if data_vec.lock().unwrap().len() != batch_size {
+            data_vec.lock().unwrap().clear();
+        }
         if training {
-            if !data_vec.is_empty() {
-                if data_vec.front().unwrap().data.len() == batch_size {
-                    (loss, acc) = train_handler_wrapper(
-                        &data_vec.pop_front().unwrap(),
-                        &mut model,
-                        batch_size,
-                    );
-                }
-                respond(
-                    &mut scope,
-                    model.export_weights(),
-                    loss,
-                    acc,
-                    batch_size,
-                    lrate,
-                    &data_vec,
-                )
-                .await;
-            }
+            (loss, acc) = train_handler_wrapper(
+                &data_vec.lock().unwrap().pop_front().unwrap(),
+                &mut model,
+                batch_size,
+            );
+            iteration += 1;
+            respond(
+                &mut scope,
+                model.export_weights(),
+                loss,
+                acc,
+                batch_size,
+                lrate,
+                iteration,
+                &data_vec.clone().lock().unwrap(),
+            )
+            .await;
             futures::select! {
                 n = scope.next() => {
                     if let Some(n) = n {
@@ -106,6 +112,7 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
 
         match m {
             ControlSignal::Start => {
+                iteration = 0;
                 training = true;
             }
             ControlSignal::Stop => {
@@ -119,7 +126,8 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
                     acc,
                     batch_size,
                     lrate,
-                    &data_vec,
+                    iteration,
+                    &data_vec.clone().lock().unwrap(),
                 )
                 .await
             }
@@ -134,7 +142,7 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
                 model = Model::new(model.export_weights(), (l, l));
             }
             ControlSignal::AddData(d) => {
-                data_vec.push_front(d);
+                data_vec.lock().unwrap().push_back(d);
             }
         };
     }

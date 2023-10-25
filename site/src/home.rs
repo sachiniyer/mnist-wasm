@@ -1,13 +1,23 @@
 use crate::api::{get_weights, send_weights, weights_delete};
+use crate::data_agent::DataTask;
+use crate::model_agent::{ControlSignal, ModelReactor};
 use crate::Grid;
-use model::util;
-use model::util::Weights;
-use model::Model;
-use std::sync::{Arc, Mutex};
+use model::{
+    util,
+    util::{Data, Weights},
+    Model,
+};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+};
 use wasm_bindgen::JsCast;
 use web_sys::{EventTarget, HtmlInputElement};
-use yew::prelude::*;
-use yew::{function_component, html, Html};
+use yew::{function_component, functional::use_effect, html, prelude::*, Html};
+use yew_agent::{
+    oneshot::use_oneshot_runner,
+    reactor::{use_reactor_bridge, ReactorEvent},
+};
 
 #[function_component(Home)]
 pub fn home() -> Html {
@@ -21,7 +31,53 @@ pub fn home() -> Html {
     let train_loss_handle = use_state(|| 0.0);
     let learning_rate_handle = use_state(|| 0.035);
     let accuracy_handle = use_state(|| 0.0);
+    let cache_size_handle = use_state(|| 50);
     let local_train_toggle = Arc::new(Mutex::new(false));
+    let data_task = use_oneshot_runner::<DataTask>();
+    let data_cache_internal = use_state(|| VecDeque::<Data>::new());
+    let data_futures_local = use_state(|| 0);
+
+    let iter_handle_response = iter_handle.clone();
+    let train_loss_handle_response = train_loss_handle.clone();
+    let accuracy_handle_response = accuracy_handle.clone();
+
+    let data_cache_internal_model = data_cache_internal.clone();
+    let block_size_handle_model = block_size_handle.clone();
+    let data_futures_local_model = data_futures_local.clone();
+    let data_agent = data_task.clone();
+    let model_sub = use_reactor_bridge::<ModelReactor, _>(move |event| match event {
+        ReactorEvent::Output(status) => {
+            iter_handle_response.set(status.iteration);
+            train_loss_handle_response.set(status.loss);
+            accuracy_handle_response.set(status.acc);
+            for _ in (status.data_len + *data_futures_local)..*cache_size_handle {
+                let block_size_handle = block_size_handle_model.clone();
+                let data_cache_internal = data_cache_internal_model.clone();
+                let data_futures_local = data_futures_local_model.clone();
+                let data_agent = data_agent.clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    data_futures_local.set(*data_futures_local + 1);
+                    let mut data_cache_internal_temp = (*data_cache_internal).clone();
+                    data_cache_internal_temp.push_front(data_agent.run(*block_size_handle).await);
+                    data_cache_internal.set(data_cache_internal_temp);
+                    data_futures_local.set(*data_futures_local - 1);
+                });
+            }
+        }
+        _ => (),
+    });
+
+    let data_cache_internal_effect = data_cache_internal.clone();
+    use_effect(move || {
+        if data_cache_internal_effect.len() > 0 {
+            wasm_bindgen_futures::spawn_local(async move {
+                let mut data_cache_internal_temp = (*data_cache_internal).clone();
+                let data = data_cache_internal_temp.pop_back().unwrap();
+                model_sub.send(ControlSignal::AddData(data));
+                data_cache_internal.set(data_cache_internal_temp);
+            });
+        }
+    });
 
     let model_handle = use_state(|| {
         Model::new(
