@@ -1,6 +1,6 @@
-- [x] Finish overall structure (cargo workspace...)
-- [x] Finish model
-- [x] Verify model works (check loss decreasing...)
+- [x] finish overall structure (cargo workspace...)
+- [x] finish model
+- [x] verify model works (check loss decreasing...)
 - [x] write api
 - [x] train mnsit
 - [x] create ui for site
@@ -9,6 +9,7 @@
 - [x] hook model and frontend together
 - [x] hook api and frontend together
 - [x] make ui pretty
-- [x] Dockerize everything
+- [x] dockerize everything
 - [ ] use web workers and optimize training/downloading
-- [ ] Deploy
+- [ ] integration test
+- [ ] deploy
