@@ -35,22 +35,30 @@ pub fn home() -> Html {
     let local_train_toggle = Arc::new(Mutex::new(false));
     let data_task = use_oneshot_runner::<DataTask>();
     let data_cache_internal = use_state(|| VecDeque::<Data>::new());
+    let data_cache_external = use_state(|| 0);
     let data_futures_local = use_state(|| 0);
 
     let iter_handle_response = iter_handle.clone();
     let train_loss_handle_response = train_loss_handle.clone();
     let accuracy_handle_response = accuracy_handle.clone();
+    let data_cache_external_response = data_cache_external.clone();
+    let learning_rate_handle_response = learning_rate_handle.clone();
 
     let data_cache_internal_model = data_cache_internal.clone();
     let block_size_handle_model = block_size_handle.clone();
     let data_futures_local_model = data_futures_local.clone();
+    let cache_size_handle_model = cache_size_handle.clone();
     let data_agent = data_task.clone();
     let model_sub = use_reactor_bridge::<ModelReactor, _>(move |event| match event {
         ReactorEvent::Output(status) => {
             iter_handle_response.set(status.iteration);
             train_loss_handle_response.set(status.loss);
             accuracy_handle_response.set(status.acc);
-            for _ in (status.data_len + *data_futures_local)..*cache_size_handle {
+            data_cache_external_response.set(status.data_len);
+            block_size_handle_model.set(status.batch_size);
+            learning_rate_handle_response.set(status.lrate as f64);
+
+            for _ in (status.data_len + *data_futures_local_model)..*cache_size_handle_model {
                 let block_size_handle = block_size_handle_model.clone();
                 let data_cache_internal = data_cache_internal_model.clone();
                 let data_futures_local = data_futures_local_model.clone();
@@ -68,13 +76,14 @@ pub fn home() -> Html {
     });
 
     let data_cache_internal_effect = data_cache_internal.clone();
+    let model_sub_effect = model_sub.clone();
     use_effect(move || {
         if data_cache_internal_effect.len() > 0 {
             wasm_bindgen_futures::spawn_local(async move {
-                let mut data_cache_internal_temp = (*data_cache_internal).clone();
+                let mut data_cache_internal_temp = (*data_cache_internal_effect).clone();
                 let data = data_cache_internal_temp.pop_back().unwrap();
-                model_sub.send(ControlSignal::AddData(data));
-                data_cache_internal.set(data_cache_internal_temp);
+                model_sub_effect.send(ControlSignal::AddData(data));
+                data_cache_internal_effect.set(data_cache_internal_temp);
             });
         }
     });
@@ -241,6 +250,17 @@ pub fn home() -> Html {
         })
     };
 
+    let cache_size_callback = {
+        let cache_size_handle = cache_size_handle.clone();
+        Callback::from(move |e: Event| {
+            let target: Option<EventTarget> = e.target();
+            let input = target.and_then(|t| t.dyn_into::<HtmlInputElement>().ok());
+            if let Some(input) = input {
+                cache_size_handle.set(input.value().parse::<usize>().unwrap());
+            }
+        })
+    };
+
     let learning_rate_callback = {
         let learning_rate_handle = learning_rate_handle.clone();
         Callback::from(move |e: Event| {
@@ -251,10 +271,10 @@ pub fn home() -> Html {
             }
         })
     };
-
+    let model_sub_start = model_sub.clone();
     let start_train_callback = {
         let local_train_toggle = local_train_toggle.clone();
-        let iter_handle = iter_handle.clone();
+        let model_sub = model_sub_start.clone();
         Callback::from(move |_| {
             *local_train_toggle.lock().unwrap() = true;
             web_sys::window()
@@ -262,27 +282,21 @@ pub fn home() -> Html {
                 .alert_with_message("Training started")
                 .unwrap();
 
-            web_sys::console::log_1(
-                &format!("LOCAL TRAIN TOGGLE {}", *local_train_toggle.lock().unwrap()).into(),
-            );
-            iter_handle.set(1);
+            model_sub.send(ControlSignal::Start);
         })
     };
 
+    let model_sub_stop = model_sub.clone();
     let stop_train_callback = {
         let local_train_toggle = local_train_toggle.clone();
-        let iter_handle = iter_handle.clone();
+        let model_sub = model_sub_stop.clone();
         Callback::from(move |_| {
             *local_train_toggle.lock().unwrap() = false;
-            web_sys::console::log_1(
-                &format!("LOCAL TRAIN TOGGLE {}", *local_train_toggle.lock().unwrap()).into(),
-            );
-
             web_sys::window()
                 .unwrap()
                 .alert_with_message("Training stopped")
                 .unwrap();
-            iter_handle.set(0);
+            model_sub.send(ControlSignal::Stop);
         })
     };
 
@@ -351,6 +365,13 @@ pub fn home() -> Html {
                                        min="1"
                                        max="512"
                                        placeholder="128"/>
+                                <input onchange={ cache_size_callback }
+                                       type="number"
+                                       id="target"
+                                       name="target"
+                                       min="1"
+                                       max="512"
+                                       placeholder="128"/>
                                 <input onchange={ learning_rate_callback }
                                        type="number"
                                        id="target"
@@ -365,6 +386,8 @@ pub fn home() -> Html {
                                 <p id="trainloss">{ format!("Loss: {}", *train_loss_handle) }</p>
                                 <p id="acc">{ format!("Accuracy: {}", *accuracy_handle) }</p>
                                 <p id="training"> { format!("Training: {}", *local_train_toggle.lock().unwrap()) }</p>
+                                <p id="cached">{ format!("Caching: {}", *data_futures_local + data_cache_internal.len().clone()) }</p>
+                                <p id="cached">{ format!("Cached: {}", *data_cache_external) }</p>
                             </div>
                         </div>
                     </div>
