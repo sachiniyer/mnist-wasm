@@ -10,6 +10,6 @@
 - [x] hook api and frontend together
 - [x] make ui pretty
 - [x] dockerize everything
-- [ ] use web workers and optimize training/downloading
+- [ ] use web workers and optimize training/downloading - this is so hard
 - [ ] integration test
 - [ ] deploy
