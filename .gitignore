@@ -13,6 +13,7 @@ node_modules
 .cache
 
 .env
+.env.docker
 
 prototype
 data

@@ -14,6 +14,7 @@ WORKDIR /home/api
 COPY --from=api-builder /usr/src/app/target/release/api .
 COPY --from=api-builder /usr/src/app/pretrained.txt .
 COPY --from=api-builder /usr/src/app/data ./data
+EXPOSE 8000
 CMD ["./api"]
 
 FROM rust:latest as site-builder
@@ -30,4 +31,5 @@ RUN adduser -D -u 1000 site
 USER site
 WORKDIR /home/site
 COPY --from=site-builder /usr/src/app/site/dist .
+EXPOSE 3000
 CMD ["busybox", "httpd", "-f", "-p", "3000", "-h", "/home/site"]

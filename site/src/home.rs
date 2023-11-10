@@ -1,6 +1,8 @@
 use crate::api::{get_weights, send_weights, weights_delete};
+use crate::counter::use_counter;
 use crate::data_agent::DataTask;
 use crate::model_agent::{ControlSignal, ModelReactor};
+use crate::queue::use_queue;
 use crate::Grid;
 use model::{
     util,
@@ -31,12 +33,12 @@ pub fn home() -> Html {
     let train_loss_handle = use_state(|| 0.0);
     let learning_rate_handle = use_state(|| 0.035);
     let accuracy_handle = use_state(|| 0.0);
-    let cache_size_handle = use_state(|| 50);
+    let cache_size_handle = use_state(|| 5);
     let local_train_toggle = Arc::new(Mutex::new(false));
     let data_task = use_oneshot_runner::<DataTask>();
-    let data_cache_internal = use_state(|| VecDeque::<Data>::new());
+    let data_cache_pipe = use_queue(VecDeque::<Data>::from(vec![]));
+    let data_cache_futures = use_counter(0);
     let data_cache_external = use_state(|| 0);
-    let data_futures_local = use_state(|| 0);
 
     let iter_handle_response = iter_handle.clone();
     let train_loss_handle_response = train_loss_handle.clone();
@@ -44,10 +46,10 @@ pub fn home() -> Html {
     let data_cache_external_response = data_cache_external.clone();
     let learning_rate_handle_response = learning_rate_handle.clone();
 
-    let data_cache_internal_model = data_cache_internal.clone();
     let block_size_handle_model = block_size_handle.clone();
-    let data_futures_local_model = data_futures_local.clone();
     let cache_size_handle_model = cache_size_handle.clone();
+    let data_cache_pipe_model = data_cache_pipe.clone();
+    let data_cache_futures_model = data_cache_futures.clone();
     let data_agent = data_task.clone();
     let model_sub = use_reactor_bridge::<ModelReactor, _>(move |event| match event {
         ReactorEvent::Output(status) => {
@@ -57,33 +59,35 @@ pub fn home() -> Html {
             data_cache_external_response.set(status.data_len);
             block_size_handle_model.set(status.batch_size);
             learning_rate_handle_response.set(status.lrate as f64);
-
-            for _ in (status.data_len + *data_futures_local_model)..*cache_size_handle_model {
-                let block_size_handle = block_size_handle_model.clone();
-                let data_cache_internal = data_cache_internal_model.clone();
-                let data_futures_local = data_futures_local_model.clone();
+            let block_size_handle = block_size_handle_model.clone();
+            let data_cache_futures = data_cache_futures_model.clone();
+            let data_cache_pipe = data_cache_pipe_model.clone();
+            let data_agent = data_agent.clone();
+            let currently_cached =
+                *data_cache_futures as usize + data_cache_pipe.len() + status.data_len;
+            while currently_cached < *cache_size_handle_model {
+                let block_size_handle = block_size_handle.clone();
+                let data_cache_futures = data_cache_futures.clone();
+                let data_cache_pipe = data_cache_pipe.clone();
                 let data_agent = data_agent.clone();
                 wasm_bindgen_futures::spawn_local(async move {
-                    data_futures_local.set(*data_futures_local + 1);
-                    let mut data_cache_internal_temp = (*data_cache_internal).clone();
-                    data_cache_internal_temp.push_front(data_agent.run(*block_size_handle).await);
-                    data_cache_internal.set(data_cache_internal_temp);
-                    data_futures_local.set(*data_futures_local - 1);
+                    data_cache_futures.increase();
+                    let data = data_agent.run(*block_size_handle).await;
+                    data_cache_pipe.push_back(data);
+                    data_cache_futures.decrease();
                 });
             }
         }
         _ => (),
     });
 
-    let data_cache_internal_effect = data_cache_internal.clone();
+    let data_cache_pipe_effect = data_cache_pipe.clone();
     let model_sub_effect = model_sub.clone();
     use_effect(move || {
-        if data_cache_internal_effect.len() > 0 {
+        if data_cache_pipe_effect.len() > 0 {
             wasm_bindgen_futures::spawn_local(async move {
-                let mut data_cache_internal_temp = (*data_cache_internal_effect).clone();
-                let data = data_cache_internal_temp.pop_back().unwrap();
+                let data = data_cache_pipe_effect.pop_front().unwrap();
                 model_sub_effect.send(ControlSignal::AddData(data));
-                data_cache_internal_effect.set(data_cache_internal_temp);
             });
         }
     });
@@ -386,7 +390,7 @@ pub fn home() -> Html {
                                 <p id="trainloss">{ format!("Loss: {}", *train_loss_handle) }</p>
                                 <p id="acc">{ format!("Accuracy: {}", *accuracy_handle) }</p>
                                 <p id="training"> { format!("Training: {}", *local_train_toggle.lock().unwrap()) }</p>
-                                <p id="cached">{ format!("Caching: {}", *data_futures_local + data_cache_internal.len().clone()) }</p>
+                                <p id="cached">{ format!("Caching: {}", (*data_cache_futures as usize) + data_cache_pipe.len()) }</p>
                                 <p id="cached">{ format!("Cached: {}", *data_cache_external) }</p>
                             </div>
                         </div>

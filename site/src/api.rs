@@ -1,7 +1,7 @@
 use model::util::{Data, DataInfo, DataSingle, Weights};
 use reqwest::Client;
 
-const API_URL: &str = "http://127.0.0.1:3000";
+const API_URL: &str = "http://127.0.0.0:8000";
 
 pub async fn get_weights() -> Weights {
     let client = Client::new();

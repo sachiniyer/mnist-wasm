@@ -3,9 +3,11 @@ use yew_agent::{oneshot::OneshotProvider, reactor::ReactorProvider};
 pub mod api;
 pub mod grid;
 pub mod home;
+pub mod hooks;
 
 use grid::Grid;
 use home::Home;
+use hooks::{counter, queue};
 
 pub mod model_agent;
 use model_agent::ModelReactor;
