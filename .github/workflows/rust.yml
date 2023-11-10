@@ -23,11 +23,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
       - name: Build
         run: cargo build --verbose
-      - name: Run tests
-        run: cargo test --verbose
+      - name: Run api tests
+        run: cargo test --verbose --lib api
+      - name: Run model tests
+        run: cargo test --verbose --lib model
+      - name: Run site tests
+        run: cargo test --verbose --lib site
 
   images:
     runs-on: ubuntu-latest
