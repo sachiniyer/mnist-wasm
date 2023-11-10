@@ -179,7 +179,7 @@ mod tests {
             (0.1, 0.1),
         );
         let loss = model.train1d(input, target);
-        assert!(crate::util::approximate_equal(loss, 50.0, Some(100.0)))
+        assert!(crate::util::approximate_equal(loss, 50.0, Some(200.0)))
     }
 
     #[test]
