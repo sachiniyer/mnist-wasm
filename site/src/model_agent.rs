@@ -29,13 +29,14 @@ pub struct ResponseSignal {
     pub loss: f64,
     pub acc: f64,
     pub batch_size: usize,
-    pub lrate: i64,
+    pub lrate: f64,
     pub data_len: usize,
     pub iteration: usize,
 }
 
 #[reactor]
 pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>) {
+    web_sys::console::log_1(&"Model agent started".into());
     async fn respond(
         scope: &mut ReactorScope<ControlSignal, ResponseSignal>,
         weights: (Vec<Vec<f64>>, Vec<Vec<f64>>),
@@ -52,7 +53,7 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
                 loss,
                 acc,
                 batch_size,
-                lrate: lrate as i64,
+                lrate,
                 data_len: data.len(),
                 iteration,
             })
@@ -63,7 +64,7 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
     let data_vec: Arc<Mutex<VecDeque<Data>>> = Arc::new(Mutex::new(VecDeque::new()));
     let mut training = false;
     let mut batch_size: usize = 128;
-    let lrate = 0.01;
+    let lrate: f64 = 0.01;
     let mut loss = 0.0;
     let mut acc = 0.0;
     let mut iteration = 0;
@@ -109,26 +110,33 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
                 if let Some(c) = c {
                     match c {
                         ControlSignal::Start => {
+                            web_sys::console::log_1(&"Starting training".into());
                             iteration = 0;
                             training = true;
                         }
                         ControlSignal::Stop => {
+                            web_sys::console::log_1(&"Stopping training".into());
                             training = false;
                         }
                         ControlSignal::GetStatus => {
+                            web_sys::console::log_1(&"Sending status".into());
                             send_status = true;
                         }
                         ControlSignal::SetWeights(w) => {
+                            web_sys::console::log_1(&"Setting weights".into());
                             model = Model::new(w.weights, (lrate, lrate));
                         }
                         ControlSignal::SetBatchSize(b) => {
+                            web_sys::console::log_1(&"Setting batch size".into());
                             batch_size = b;
                         }
                         ControlSignal::SetLearningRate(l) => {
+                            web_sys::console::log_1(&"Setting learning rate".into());
                             let l = l as f64;
                             model = Model::new(model.export_weights(), (l, l));
                         }
                         ControlSignal::AddData(d) => {
+                            web_sys::console::log_1(&"Adding data".into());
                             data_vec.lock().unwrap().push_back(d);
                         }
                     };
@@ -136,7 +144,7 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
                     continue;
                 }
             }
-            _ = sleep(Duration::from_millis(10)).fuse() => {
+            _ = sleep(Duration::from_millis(100)).fuse() => {
                 continue;
             }
         };

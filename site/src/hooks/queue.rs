@@ -1,4 +1,4 @@
-/// Based off Yew Hooks crate https://github.com/jetli/yew-hooks/
+// Based off Yew Hooks crate https://github.com/jetli/yew-hooks/
 use std::cell::{Ref, RefCell};
 use std::collections::VecDeque;
 use std::hash::Hash;
@@ -14,7 +14,7 @@ pub fn use_update() -> Rc<dyn Fn()> {
         state.set((*state + 1) % 1_000_000);
     })
 }
-/// State handle for the [`use_queue`] hook.
+// State handle for the [`use_queue`] hook.
 pub struct UseQueueHandle<T> {
     inner: Rc<RefCell<VecDeque<T>>>,
     update: Rc<dyn Fn()>,
@@ -94,15 +94,7 @@ where
     }
 }
 
-/// A hook that tracks a queue and provides methods to modify it.
-///
-/// # Example
-///
-/// ```rust
-/// # use std::collections::VecDeque;
-/// # use yew::prelude::*;
-/// #
-/// ```
+// A hook that tracks a queue and provides methods to modify it.
 #[hook]
 pub fn use_queue<T>(initial_value: VecDeque<T>) -> UseQueueHandle<T>
 where

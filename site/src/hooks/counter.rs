@@ -1,4 +1,4 @@
-/// Based off Yew Hooks crate https://github.com/jetli/yew-hooks/
+// Based off Yew Hooks crate https://github.com/jetli/yew-hooks/
 use std::fmt;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -7,16 +7,16 @@ use yew::prelude::*;
 
 enum CounterAction {
     Increase,
-    IncreaseBy(i32),
+    IncreaseBy(usize),
     Decrease,
-    DecreaseBy(i32),
-    Set(i32),
+    DecreaseBy(usize),
+    Set(usize),
     Reset,
 }
 
 struct UseCounterReducer {
-    value: i32,
-    default: i32,
+    value: usize,
+    default: usize,
 }
 
 impl Reducible for UseCounterReducer {
@@ -26,8 +26,20 @@ impl Reducible for UseCounterReducer {
         let next_value = match action {
             CounterAction::Increase => self.value + 1,
             CounterAction::IncreaseBy(delta) => self.value + delta,
-            CounterAction::Decrease => self.value - 1,
-            CounterAction::DecreaseBy(delta) => self.value - delta,
+            CounterAction::Decrease => {
+                if self.value > 0 {
+                    self.value - 1
+                } else {
+                    0
+                }
+            }
+            CounterAction::DecreaseBy(delta) => {
+                if self.value > delta {
+                    self.value - delta
+                } else {
+                    0
+                }
+            }
             CounterAction::Set(value) => value,
             CounterAction::Reset => self.default,
         };
@@ -46,7 +58,7 @@ impl PartialEq for UseCounterReducer {
     }
 }
 
-/// State handle for the [`use_counter`] hook.
+// State handle for the [`use_counter`] hook.
 pub struct UseCounterHandle {
     inner: UseReducerHandle<UseCounterReducer>,
 }
@@ -58,7 +70,7 @@ impl UseCounterHandle {
     }
 
     /// Increase by `delta`.
-    pub fn increase_by(&self, delta: i32) {
+    pub fn increase_by(&self, delta: usize) {
         self.inner.dispatch(CounterAction::IncreaseBy(delta));
     }
 
@@ -68,12 +80,12 @@ impl UseCounterHandle {
     }
 
     /// Decrease by `delta`.
-    pub fn decrease_by(&self, delta: i32) {
+    pub fn decrease_by(&self, delta: usize) {
         self.inner.dispatch(CounterAction::DecreaseBy(delta));
     }
 
     /// Set to `value`.
-    pub fn set(&self, value: i32) {
+    pub fn set(&self, value: usize) {
         self.inner.dispatch(CounterAction::Set(value));
     }
 
@@ -93,7 +105,7 @@ impl fmt::Debug for UseCounterHandle {
 }
 
 impl Deref for UseCounterHandle {
-    type Target = i32;
+    type Target = usize;
 
     fn deref(&self) -> &Self::Target {
         &(*self.inner).value
@@ -114,15 +126,9 @@ impl PartialEq for UseCounterHandle {
     }
 }
 
-/// This hook is used to manage counter state in a function component.
-///
-/// # Example
-///
-/// ```rust
-/// # use yew::prelude::*;
-/// ```
+// This hook is used to manage counter state in a function component.
 #[hook]
-pub fn use_counter(default: i32) -> UseCounterHandle {
+pub fn use_counter(default: usize) -> UseCounterHandle {
     let inner = use_reducer(move || UseCounterReducer {
         value: default,
         default,

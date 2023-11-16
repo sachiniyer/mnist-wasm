@@ -1,9 +1,9 @@
-use crate::api::{get_weights, send_weights, weights_delete};
-use crate::counter::use_counter;
-use crate::data_agent::DataTask;
-use crate::model_agent::{ControlSignal, ModelReactor};
-use crate::queue::use_queue;
-use crate::Grid;
+use crate::{api::{get_weights, send_weights, weights_delete},
+            queue::use_queue,
+            counter::use_counter,
+            data_agent::DataTask,
+            model_agent::{ControlSignal, ModelReactor},
+            Grid};
 use model::{
     util,
     util::{Data, Weights},
@@ -58,14 +58,15 @@ pub fn home() -> Html {
             accuracy_handle_response.set(status.acc);
             data_cache_external_response.set(status.data_len);
             block_size_handle_model.set(status.batch_size);
-            learning_rate_handle_response.set(status.lrate as f64);
+            learning_rate_handle_response.set(status.lrate);
             let block_size_handle = block_size_handle_model.clone();
             let data_cache_futures = data_cache_futures_model.clone();
             let data_cache_pipe = data_cache_pipe_model.clone();
             let data_agent = data_agent.clone();
             let currently_cached =
-                *data_cache_futures as usize + data_cache_pipe.len() + status.data_len;
-            while currently_cached < *cache_size_handle_model {
+                *data_cache_futures + data_cache_pipe.len() + status.data_len;
+            for _ in 0..(*cache_size_handle_model - currently_cached) {
+                web_sys::console::log_1(&"caching".into());
                 let block_size_handle = block_size_handle.clone();
                 let data_cache_futures = data_cache_futures.clone();
                 let data_cache_pipe = data_cache_pipe.clone();
@@ -76,6 +77,7 @@ pub fn home() -> Html {
                     data_cache_pipe.push_back(data);
                     data_cache_futures.decrease();
                 });
+
             }
         }
         _ => (),
@@ -281,12 +283,12 @@ pub fn home() -> Html {
         let model_sub = model_sub_start.clone();
         Callback::from(move |_| {
             *local_train_toggle.lock().unwrap() = true;
+            model_sub.send(ControlSignal::Start);
             web_sys::window()
                 .unwrap()
                 .alert_with_message("Training started")
                 .unwrap();
 
-            model_sub.send(ControlSignal::Start);
         })
     };
 
@@ -296,11 +298,11 @@ pub fn home() -> Html {
         let model_sub = model_sub_stop.clone();
         Callback::from(move |_| {
             *local_train_toggle.lock().unwrap() = false;
+            model_sub.send(ControlSignal::Stop);
             web_sys::window()
                 .unwrap()
                 .alert_with_message("Training stopped")
                 .unwrap();
-            model_sub.send(ControlSignal::Stop);
         })
     };
 
@@ -390,7 +392,7 @@ pub fn home() -> Html {
                                 <p id="trainloss">{ format!("Loss: {}", *train_loss_handle) }</p>
                                 <p id="acc">{ format!("Accuracy: {}", *accuracy_handle) }</p>
                                 <p id="training"> { format!("Training: {}", *local_train_toggle.lock().unwrap()) }</p>
-                                <p id="cached">{ format!("Caching: {}", (*data_cache_futures as usize) + data_cache_pipe.len()) }</p>
+                                <p id="cached">{ format!("Caching: {}", *data_cache_futures + data_cache_pipe.len()) }</p>
                                 <p id="cached">{ format!("Cached: {}", *data_cache_external) }</p>
                             </div>
                         </div>
