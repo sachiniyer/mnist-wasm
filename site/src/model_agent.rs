@@ -12,6 +12,7 @@ use std::{
 use yew::platform::time::sleep;
 use yew_agent::prelude::*;
 use crate::api::get_block;
+use wasm_bindgen_futures::JsFuture;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ControlSignal {
@@ -39,7 +40,7 @@ pub struct ResponseSignal {
 
 pub struct ModelData {
     data_vec: Arc<Mutex<VecDeque<Data>>>,
-    data_futures: Vec<i32>,
+    data_futures: Vec<JsFuture>,
     training: bool,
     batch_size: usize,
     lrate: f64,
@@ -94,6 +95,7 @@ impl ModelData {
     }
 
     fn cache_data(&mut self) {
+
     }
 
     fn add_futures(&mut self) {
