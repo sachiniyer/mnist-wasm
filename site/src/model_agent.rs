@@ -1,4 +1,4 @@
-use futures::{FutureExt, SinkExt, StreamExt};
+use futures::{FutureExt, SinkExt, StreamExt, future::Either, pin_mut};
 use model::{
     util::{random_dist, train_handler_wrapper, Data, Weights},
     Model,
@@ -40,7 +40,7 @@ pub struct ResponseSignal {
 
 pub struct ModelData {
     data_vec: Arc<Mutex<VecDeque<Data>>>,
-    data_futures: Vec<JsFuture>,
+    data_futures: Arc<Mutex<Vec<JsFuture>>>,
     training: bool,
     batch_size: usize,
     lrate: f64,
@@ -57,7 +57,7 @@ impl ModelData {
     fn new() -> Self {
         Self {
             data_vec: Arc::new(Mutex::new(VecDeque::new())),
-            data_futures: Vec::new(),
+            data_futures: Arc::new(Mutex::new(Vec::new())),
             training: false,
             batch_size: 128,
             lrate: 0.01,
@@ -73,11 +73,11 @@ impl ModelData {
         }
     }
 
-    fn execute(&mut self) {
+    async fn execute(&mut self) {
         if self.training {
             self.train();
         }
-        self.cache_data();
+        self.cache_data().await;
     }
 
     fn train(&mut self) {
@@ -94,17 +94,50 @@ impl ModelData {
         }
     }
 
-    fn cache_data(&mut self) {
+    async fn check_future(&mut self, future: &mut JsFuture) -> Result<(), ()> {
+        let timeout_duration = Duration::from_millis(100);
+        let timeout_future = sleep(timeout_duration);
+        pin_mut!(timeout_future);
+        pin_mut!(future);
+        let either = futures::future::select(future, timeout_future).await;
 
+        match either {
+            Either::Left((result, _)) => {
+                Ok(())
+            }
+            Either::Right((_, _)) => {
+                Err(())
+            }
+        }
     }
 
-    fn add_futures(&mut self) {
-       if self.data_futures.len() + self.data_vec.lock().unwrap().len() < self.cache_size {
-           let mut data_vec = self.data_vec.lock().unwrap();
-           for _ in 0..self.cache_size - self.data_futures.len() - data_vec.len() {
-               let data = get_block(self.batch_size);
-           }
-       }
+    async fn cache_data(&mut self) {
+        self.add_futures().await;
+
+        let mut futures = std::mem::take(&mut *self.data_futures.lock().unwrap());
+
+        let mut remaining_futures = Vec::new();
+
+        for mut future in futures.drain(..) {
+            if self.check_future(&mut future).await.is_ok() {
+                let data = future.await.unwrap();
+                self.data_vec.lock().unwrap().push_back(serde_json::from_str(&data.as_string().unwrap()).unwrap());
+            } else {
+                remaining_futures.push(future);
+            }
+        }
+
+        *self.data_futures.lock().unwrap() = remaining_futures;
+    }
+
+    async fn add_futures(&mut self) {
+        let difference = self.cache_size - self.data_futures.lock().unwrap().len() - self.data_vec.lock().unwrap().len();
+        if difference > 0 {
+            for _ in 0..difference {
+                let data_future = get_block(self.batch_size);
+                self.data_futures.lock().unwrap().push(data_future.await);
+            }
+        }
     }
 
     fn respond(&mut self) -> ResponseSignal {
@@ -115,7 +148,7 @@ impl ModelData {
             batch_size: self.batch_size,
             lrate: self.lrate,
             data_len: self.data_vec.lock().unwrap().len(),
-            data_futures_len: self.data_futures.len(),
+            data_futures_len: self.data_futures.lock().unwrap().len(),
             iteration: self.iteration,
             cache_size: self.cache_size,
         }
@@ -151,11 +184,11 @@ impl ModelData {
 }
 
 #[reactor]
+#[allow(non_snake_case)]
 pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>) {
-    web_sys::console::log_1(&"Model agent started".into());
     let mut data = ModelData::new();
     loop {
-        data.execute();
+        data.execute().await;
         if data.send_status {
             scope.send(data.respond()).await.unwrap();
         }
