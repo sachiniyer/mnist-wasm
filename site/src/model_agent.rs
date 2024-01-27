@@ -1,4 +1,4 @@
-use futures::{FutureExt, SinkExt, StreamExt, future::Either, pin_mut};
+use futures::{FutureExt, SinkExt, StreamExt, future::Future, select};
 use model::{
     util::{random_dist, train_handler_wrapper, Data, Weights},
     Model,
@@ -7,12 +7,12 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex},
-    time::Duration
+    time::Duration,
 };
 use yew::platform::time::sleep;
 use yew_agent::prelude::*;
-use crate::api::get_block;
-use wasm_bindgen_futures::JsFuture;
+use crate::api::{get_block, Sendable};
+use wasm_bindgen::JsValue;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ControlSignal {
@@ -38,9 +38,14 @@ pub struct ResponseSignal {
     pub cache_size: usize,
 }
 
+struct SendableFuture(Box<dyn Future<Output = Result<Sendable<JsValue>, Sendable<JsValue>>> + Send>);
+
+unsafe impl Send for SendableFuture {}
+
+
 pub struct ModelData {
     data_vec: Arc<Mutex<VecDeque<Data>>>,
-    data_futures: Arc<Mutex<Vec<JsFuture>>>,
+    data_futures: Arc<Mutex<Vec<SendableFuture>>>,
     training: bool,
     batch_size: usize,
     lrate: f64,
@@ -80,6 +85,20 @@ impl ModelData {
         self.cache_data().await;
     }
 
+    fn respond(&mut self) -> ResponseSignal {
+        ResponseSignal {
+            weights: Weights{ weights: self.model.export_weights()},
+            loss: self.loss,
+            acc: self.acc,
+            batch_size: self.batch_size,
+            lrate: self.lrate,
+            data_len: self.data_vec.lock().unwrap().len(),
+            data_futures_len: self.data_futures.lock().unwrap().len(),
+            iteration: self.iteration,
+            cache_size: self.cache_size,
+        }
+    }
+
     fn train(&mut self) {
         let mut data = self.data_vec.lock().unwrap().pop_front();
         while data.is_some() && data.as_ref().unwrap().data.len() != self.batch_size {
@@ -94,63 +113,58 @@ impl ModelData {
         }
     }
 
-    async fn check_future(&mut self, future: &mut JsFuture) -> Result<(), ()> {
-        let timeout_duration = Duration::from_millis(100);
-        let timeout_future = sleep(timeout_duration);
-        pin_mut!(timeout_future);
-        pin_mut!(future);
-        let either = futures::future::select(future, timeout_future).await;
+// // 2. Function to loop over the promises and call a polling function
+// async fn loop_and_poll_requests(urls: Vec<&str>) -> Vec<JsValue> {
+//     let mut futures = vec![];
 
-        match either {
-            Either::Left((result, _)) => {
-                Ok(())
-            }
-            Either::Right((_, _)) => {
-                Err(())
-            }
-        }
-    }
+//     for url in urls {
+//         let future = make_request(url).fuse(); // `.fuse()` allows us to poll a future multiple times
+//         futures.push(future);
+//     }
+
+//     let mut results = Vec::new();
+//     for future in futures {
+//         match poll_promise(future).await {
+//             Ok(result) => results.push(result),
+//             Err(e) => web_sys::console::log_1(&format!("Error: {:?}", e).into()),
+//         }
+//     }
+
+//     results
+// }
 
     async fn cache_data(&mut self) {
         self.add_futures().await;
 
-        let mut futures = std::mem::take(&mut *self.data_futures.lock().unwrap());
+        let mut data_futures = self.data_futures.lock().unwrap();
 
-        let mut remaining_futures = Vec::new();
-
-        for mut future in futures.drain(..) {
-            if self.check_future(&mut future).await.is_ok() {
-                let data = future.await.unwrap();
-                self.data_vec.lock().unwrap().push_back(serde_json::from_str(&data.as_string().unwrap()).unwrap());
-            } else {
-                remaining_futures.push(future);
-            }
+        for i in 0..data_futures.len() {
+            let mut data_future = data_futures.get_mut(i).unwrap();
         }
 
-        *self.data_futures.lock().unwrap() = remaining_futures;
     }
 
     async fn add_futures(&mut self) {
         let difference = self.cache_size - self.data_futures.lock().unwrap().len() - self.data_vec.lock().unwrap().len();
-        if difference > 0 {
-            for _ in 0..difference {
-                let data_future = get_block(self.batch_size);
-                self.data_futures.lock().unwrap().push(data_future.await);
-            }
+        for _ in 0..difference {
+            let data_future = SendableFuture(Box::new(get_block(self.batch_size)));
+            self.data_futures.lock().unwrap().push(data_future);
         }
     }
 
-    fn respond(&mut self) -> ResponseSignal {
-        ResponseSignal {
-            weights: Weights{ weights: self.model.export_weights()},
-            loss: self.loss,
-            acc: self.acc,
-            batch_size: self.batch_size,
-            lrate: self.lrate,
-            data_len: self.data_vec.lock().unwrap().len(),
-            data_futures_len: self.data_futures.lock().unwrap().len(),
-            iteration: self.iteration,
-            cache_size: self.cache_size,
+    async fn poll_future<F>(future: F) -> Result<Data, ()>
+    where
+        F: std::future::Future<Output = Data>,
+    {
+        let wait_time = Duration::from_millis(10);
+        let future = future.fuse();
+        let timeout = sleep(wait_time).fuse();
+
+        futures::pin_mut!(future, timeout);
+
+        select! {
+            result = future => Ok(result),
+            _ = timeout => Err(()),
         }
     }
 
@@ -181,6 +195,7 @@ impl ModelData {
     fn set_cache_size(&mut self, cache_size: usize) {
         self.cache_size = cache_size;
     }
+
 }
 
 #[reactor]
@@ -229,7 +244,7 @@ pub async fn ModelReactor(mut scope: ReactorScope<ControlSignal, ResponseSignal>
                     continue;
                 }
             }
-            _ = sleep(Duration::from_millis(100)).fuse() => {
+            _ = sleep(Duration::from_millis(10)).fuse() => {
                 continue;
             }
         };

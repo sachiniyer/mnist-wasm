@@ -1,21 +1,16 @@
 use crate::{api::{get_weights, send_weights, weights_delete},
-            queue::use_queue,
-            counter::use_counter,
             model_agent::{ControlSignal, ModelReactor},
             Grid};
 use model::{
     util,
-    util::{Data, Weights},
+    util::Weights,
     Model,
 };
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{EventTarget, HtmlInputElement};
-use yew::{function_component, functional::use_effect, html, prelude::*, Html};
+use yew::{function_component, html, prelude::*, Html};
 use yew_agent::reactor::{use_reactor_bridge, ReactorEvent};
 
 #[function_component(Home)]
@@ -31,39 +26,10 @@ pub fn home() -> Html {
     let learning_rate_handle = use_state(|| 0.035);
     let accuracy_handle = use_state(|| 0.0);
     let cache_size_handle = use_state(|| 5);
+    // can I change this to state as well?
     let local_train_toggle = Arc::new(Mutex::new(false));
-    let data_cache_pipe = use_queue(VecDeque::<Data>::from(vec![]));
-    let data_cache_futures = use_counter(0);
-    let data_cache_external = use_state(|| 0);
-
-    let iter_handle_response = iter_handle.clone();
-    let train_loss_handle_response = train_loss_handle.clone();
-    let accuracy_handle_response = accuracy_handle.clone();
-    let data_cache_external_response = data_cache_external.clone();
-    let learning_rate_handle_response = learning_rate_handle.clone();
-
-    let block_size_handle_model = block_size_handle.clone();
-    let model_sub = use_reactor_bridge::<ModelReactor, _>(move |event| match event {
-        ReactorEvent::Output(status) => {
-            iter_handle_response.set(status.iteration);
-            train_loss_handle_response.set(status.loss);
-            accuracy_handle_response.set(status.acc);
-            data_cache_external_response.set(status.data_len);
-            block_size_handle_model.set(status.batch_size);
-            learning_rate_handle_response.set(status.lrate);
-        }
-        _ => (),
-    });
-
-    let data_cache_pipe_effect = data_cache_pipe.clone();
-    let model_sub_effect = model_sub.clone();
-    use_effect(move || {
-        if data_cache_pipe_effect.len() > 0 {
-            spawn_local(async move {
-                let data = data_cache_pipe_effect.pop_front().unwrap();
-            });
-        }
-    });
+    let data_caching = use_state(||0);
+    let data_cached = use_state(|| 0);
 
     let model_handle = use_state(|| {
         Model::new(
@@ -71,6 +37,34 @@ pub fn home() -> Html {
             (*learning_rate_handle, *learning_rate_handle),
         )
     });
+
+    let iter_handle_response = iter_handle.clone();
+    let train_loss_handle_response = train_loss_handle.clone();
+    let accuracy_handle_response = accuracy_handle.clone();
+    let data_caching_response = data_caching.clone();
+    let data_cached_response = data_cached.clone();
+    let learning_rate_handle_response = learning_rate_handle.clone();
+    let model_handle_response = model_handle.clone();
+
+    let block_size_handle_model = block_size_handle.clone();
+
+    let model_sub = use_reactor_bridge::<ModelReactor, _>(move |event| match event {
+        ReactorEvent::Output(status) => {
+            iter_handle_response.set(status.iteration);
+            train_loss_handle_response.set(status.loss);
+            accuracy_handle_response.set(status.acc);
+            data_cached_response.set(status.data_len);
+            data_caching_response.set(status.data_futures_len);
+            block_size_handle_model.set(status.batch_size);
+            learning_rate_handle_response.set(status.lrate);
+            model_handle_response.set(Model::new(
+                status.weights.weights,
+                (*learning_rate_handle_response, *learning_rate_handle_response),
+            ));
+        }
+        _ => (),
+    });
+
 
     let infer_callback = {
         let inference_handler = inference_handler.clone();
@@ -363,8 +357,8 @@ pub fn home() -> Html {
                                 <p id="trainloss">{ format!("Loss: {}", *train_loss_handle) }</p>
                                 <p id="acc">{ format!("Accuracy: {}", *accuracy_handle) }</p>
                                 <p id="training"> { format!("Training: {}", *local_train_toggle.lock().unwrap()) }</p>
-                                <p id="cached">{ format!("Caching: {}", *data_cache_futures + data_cache_pipe.len()) }</p>
-                                <p id="cached">{ format!("Cached: {}", *data_cache_external) }</p>
+                                <p id="cached">{ format!("Caching: {}", *data_caching) }</p>
+                                <p id="cached">{ format!("Cached: {}", *data_cached) }</p>
                             </div>
                         </div>
                     </div>

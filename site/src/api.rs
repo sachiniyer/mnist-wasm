@@ -1,10 +1,13 @@
 use model::util::{Data, DataInfo, DataSingle, Weights};
+use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Request, RequestInit, RequestMode};
+use web_sys::{Request, RequestInit, RequestMode, Response};
 use reqwest::Client;
 
 const API_URL: &str = "http://127.0.0.0:8000";
+
+pub struct Sendable<T: ?Sized>(pub Box<T>);
 
 pub async fn get_weights() -> Weights {
     let client = Client::new();
@@ -37,23 +40,20 @@ pub async fn get_sample() -> DataSingle {
     data.data.get(0).unwrap().clone()
 }
 
-pub async fn get_block(block_size: usize) -> JsFuture {
-    let mut opts = RequestInit::new();
-    opts.method("POST");
-    opts.mode(RequestMode::Cors);
-    opts.body(Some(&JsValue::from_str(&serde_json::to_string(&DataInfo { block: block_size }).unwrap())));
-    let request = Request::new_with_str_and_init(
-        format!("{}/datablock", API_URL).as_str(),
-        &opts,
-    )
-    .unwrap();
-    request
-        .headers()
-        .set("Accept", "application/json")
-        .unwrap();
+pub async fn get_block(block_size: usize) -> Sendable<Result<JsValue, JsValue>> {
+    let data_info = DataInfo { block: block_size };
+    let serialized_data_info = serde_json::to_string(&data_info).map_err(|e| JsValue::from_str(&e.to_string())).unwrap();
+    // let mut opts = RequestInit::new();
+    // opts.method("POST");
+    // opts.mode(RequestMode::Cors);
+    // opts.body(Some(&JsValue::from_str(&serialized_data_info)));
+
+    let request = Request::new(Method::POST, &format!("{}/datablock", API_URL))
+        .mode(RequestMode::Cors)
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json");
+
     let window = web_sys::window().unwrap();
-    // return a future that is fulfilled when the request is complete
-    JsFuture::from(window.fetch_with_request(&request))
 }
 
 pub async fn send_weights(weights: Weights) {
