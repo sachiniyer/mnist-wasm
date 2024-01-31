@@ -1,4 +1,4 @@
-use futures::{FutureExt, SinkExt, StreamExt, future::Future, select};
+use futures::{FutureExt, SinkExt, StreamExt};
 use model::{
     util::{random_dist, train_handler_wrapper, Data, Weights},
     Model,
@@ -11,8 +11,8 @@ use std::{
 };
 use yew::platform::time::sleep;
 use yew_agent::prelude::*;
-use crate::api::{get_block, Sendable};
-use wasm_bindgen::JsValue;
+use crate::api::get_block;
+use wasm_bindgen_futures::spawn_local;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ControlSignal {
@@ -38,14 +38,10 @@ pub struct ResponseSignal {
     pub cache_size: usize,
 }
 
-struct SendableFuture(Box<dyn Future<Output = Result<Sendable<JsValue>, Sendable<JsValue>>> + Send>);
-
-unsafe impl Send for SendableFuture {}
-
-
 pub struct ModelData {
     data_vec: Arc<Mutex<VecDeque<Data>>>,
-    data_futures: Arc<Mutex<Vec<SendableFuture>>>,
+    data_given: i64,
+    data_taken: i64,
     training: bool,
     batch_size: usize,
     lrate: f64,
@@ -62,7 +58,8 @@ impl ModelData {
     fn new() -> Self {
         Self {
             data_vec: Arc::new(Mutex::new(VecDeque::new())),
-            data_futures: Arc::new(Mutex::new(Vec::new())),
+            data_given: 0,
+            data_taken: 0,
             training: false,
             batch_size: 128,
             lrate: 0.01,
@@ -93,7 +90,7 @@ impl ModelData {
             batch_size: self.batch_size,
             lrate: self.lrate,
             data_len: self.data_vec.lock().unwrap().len(),
-            data_futures_len: self.data_futures.lock().unwrap().len(),
+            data_futures_len: (self.data_given - self.data_taken) as usize,
             iteration: self.iteration,
             cache_size: self.cache_size,
         }
@@ -103,8 +100,10 @@ impl ModelData {
         let mut data = self.data_vec.lock().unwrap().pop_front();
         while data.is_some() && data.as_ref().unwrap().data.len() != self.batch_size {
             data = self.data_vec.lock().unwrap().pop_front();
+            self.data_taken += 1;
         }
         if data.is_some() {
+            self.data_taken += 1;
             let (loss, acc) = train_handler_wrapper(&data.unwrap(), &mut self.model, self.batch_size);
             self.loss = loss;
             self.acc = acc;
@@ -113,58 +112,20 @@ impl ModelData {
         }
     }
 
-// // 2. Function to loop over the promises and call a polling function
-// async fn loop_and_poll_requests(urls: Vec<&str>) -> Vec<JsValue> {
-//     let mut futures = vec![];
-
-//     for url in urls {
-//         let future = make_request(url).fuse(); // `.fuse()` allows us to poll a future multiple times
-//         futures.push(future);
-//     }
-
-//     let mut results = Vec::new();
-//     for future in futures {
-//         match poll_promise(future).await {
-//             Ok(result) => results.push(result),
-//             Err(e) => web_sys::console::log_1(&format!("Error: {:?}", e).into()),
-//         }
-//     }
-
-//     results
-// }
-
     async fn cache_data(&mut self) {
-        self.add_futures().await;
-
-        let mut data_futures = self.data_futures.lock().unwrap();
-
-        for i in 0..data_futures.len() {
-            let mut data_future = data_futures.get_mut(i).unwrap();
-        }
-
+        let missing = (self.cache_size as i64 - self.data_vec.lock().unwrap().len() as i64) - (self.data_given - self.data_taken);
+        self.add_futures(missing).await;
     }
 
-    async fn add_futures(&mut self) {
-        let difference = self.cache_size - self.data_futures.lock().unwrap().len() - self.data_vec.lock().unwrap().len();
-        for _ in 0..difference {
-            let data_future = SendableFuture(Box::new(get_block(self.batch_size)));
-            self.data_futures.lock().unwrap().push(data_future);
-        }
-    }
-
-    async fn poll_future<F>(future: F) -> Result<Data, ()>
-    where
-        F: std::future::Future<Output = Data>,
-    {
-        let wait_time = Duration::from_millis(10);
-        let future = future.fuse();
-        let timeout = sleep(wait_time).fuse();
-
-        futures::pin_mut!(future, timeout);
-
-        select! {
-            result = future => Ok(result),
-            _ = timeout => Err(()),
+    async fn add_futures(&mut self, missing: i64) {
+        for _ in 0..missing {
+            self.data_given += 1;
+            let data_vec_handle = self.data_vec.clone();
+            let batch_size = self.batch_size;
+            spawn_local(async move {
+                let data = get_block(batch_size).await;
+                data_vec_handle.lock().unwrap().push_back(data);
+            });
         }
     }
 
