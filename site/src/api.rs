@@ -42,8 +42,6 @@ pub async fn get_block(block_size: usize) -> Data {
         &client
             .post(format!("{}/datablock", API_URL))
             .json(&DataInfo { block: block_size })
-            .header("Content-Type", "application/json")
-            .header("Accept", "application/json")
             .send()
             .await
             .unwrap()
