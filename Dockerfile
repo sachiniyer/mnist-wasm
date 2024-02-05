@@ -26,10 +26,8 @@ RUN wget -qO- https://github.com/thedodd/trunk/releases/download/v0.17.5/trunk-x
 RUN cargo install --locked wasm-bindgen-cli
 RUN cd site && ../trunk build
 
-FROM busybox:latest as site
-RUN adduser -D -u 1000 site
-USER site
-WORKDIR /home/site
+FROM nginx:latest as site
+WORKDIR /usr/share/nginx/html
 COPY --from=site-builder /usr/src/app/site/dist .
-EXPOSE 3000
-CMD ["busybox", "httpd", "-f", "-p", "3000", "-h", "/home/site"]
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

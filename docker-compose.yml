@@ -9,7 +9,7 @@ services:
       - "8000:8000"
     environment:
       - WEIGHTS=/home/api/pretrained.txt
-      - BIND_URL=127.0.0.1:8000
+      - BIND_URL=0.0.0.0:8000
       - DATA=/home/api/data
       - LEARNING_RATE=0.01
       - BATCH_SIZE=128
@@ -22,4 +22,4 @@ services:
       target: site
     image: sachiyer/mnist-wasm-site
     ports:
-      - "3000:3000"
+      - "3000:80"
