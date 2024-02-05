@@ -1,6 +1,6 @@
 # mnist-wasm
 
-_In Progress_
+https://digits.sachiniyer.com
 
 # Idea
 
