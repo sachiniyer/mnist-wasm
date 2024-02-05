@@ -10,6 +10,7 @@
 - [x] hook api and frontend together
 - [x] make ui pretty
 - [x] dockerize everything
-- [ ] use web workers and optimize training/downloading - this is so hard
+- [x] use web workers and optimize training/downloading - this ~is~ was so hard
+- [ ] figure out why `busybox` is not serving wasm correctly
 - [ ] integration test
 - [ ] deploy
