@@ -14,10 +14,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 model = { path = "../model" }
-# yew = { git = "https://github.com/yewstack/yew/", features = ["csr"] }
-yew = { path = "../yew/packages/yew", features = ["csr"] }
-# yew-agent = { git = "https://github.com/yewstack/yew/" }
-yew-agent = { path = "../yew/packages/yew-agent" }
+yew = { git = "https://github.com/yewstack/yew/", features = ["csr"], rev = "1d889347" }
+yew-agent = { git = "https://github.com/yewstack/yew/", rev = "1d889347" }
 postcard = "1.0"
 wasm-bindgen = "0.2.90"
 getrandom = { version = "0.2", features = ["js"] }
