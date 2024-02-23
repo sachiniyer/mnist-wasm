@@ -1,5 +1,4 @@
 use crate::model::Model;
-use rand;
 use rand::distributions::uniform;
 use rand::seq::SliceRandom;
 use rand::Rng;

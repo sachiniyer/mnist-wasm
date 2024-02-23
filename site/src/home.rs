@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{EventTarget, HtmlInputElement};
-use yew::{function_component, html, prelude::*, Html};
+use yew::{function_component, html, prelude::*};
 use yew_agent::reactor::{use_reactor_bridge, ReactorEvent};
 
 #[function_component(Home)]

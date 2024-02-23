@@ -1,14 +1,10 @@
 use axum::{
-    http::header::{CONTENT_TYPE, USER_AGENT},
-    http::Method,
-    http::StatusCode,
+    http::{header::{CONTENT_TYPE, USER_AGENT}, Method, StatusCode},
     response::Html,
     routing::{delete, get, patch, post},
     Json, Router,
 };
-use csv;
 use dotenv::dotenv;
-use model;
 use model::util;
 use model::util::{get_sample_block, train_handler_wrapper, Data, DataInfo, DataSingle, Weights};
 use serde_json::{json, Value};
