@@ -1,7 +1,7 @@
 use model::util::{Data, DataInfo, DataSingle, Weights};
 use reqwest::Client;
 
-const API_URL: &str = "http://127.0.0.0:8000";
+const API_URL: &str = "https://digits-api.sachiniyer.com";
 
 pub struct Sendable<T: ?Sized>(pub Box<T>);
 
